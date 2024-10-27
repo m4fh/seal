@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 mlua = {version = "0.10.0", features = ["luau", "async"]}
+regex = "1.11.1"
 

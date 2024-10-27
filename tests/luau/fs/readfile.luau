@@ -1,5 +1,5 @@
 type fs = {
-		readfile: (string) -> string,
+	readfile: (string) -> string,
 }
 
 local fs = require("@std/fs") :: fs
