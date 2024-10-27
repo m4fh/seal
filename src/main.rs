@@ -31,10 +31,10 @@ fn main() -> LuaResult<()> {
     let luau = Lua::new();
 
     let args: Vec<String> = env::args().collect();
-    // if args.len() != 2 {
-    //     eprintln!("bad usage");
-    //     process::exit(1);
-    // }
+    if args.len() <= 1 {
+        eprintln!("bad usage: did you forget to pass a file?");
+        process::exit(1);
+    }
     
     let luau_code: String = {
         let file_path = args[1].clone();

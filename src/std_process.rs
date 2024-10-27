@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{self, Command};
 
 use mlua::prelude::*;
 use crate::table_helpers::TableBuilder;
@@ -87,8 +87,24 @@ fn run_program(luau: &Lua, run_options: LuaValue) -> LuaResult<LuaTable> {
 	
 }
 
+fn exit(_luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
+    let exit_code = if let Some(exit_code) = exit_code {
+        match exit_code {
+            LuaValue::Integer(i) => i as i32,
+            _ => {
+                panic!("process.exit expected exit_code to be a number (integer) or nil, got {:?}", exit_code);
+            }
+        }
+    } else {
+        0 as i32
+    };
+    process::exit(exit_code);
+}
+
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
 	TableBuilder::create(luau)?
 		.with_function("run", run_program)?
+        .with_function("exit", exit)?
 		.build_readonly()
 }

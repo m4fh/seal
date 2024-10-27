@@ -32,6 +32,7 @@ type process = {
 	run: (RunOptions) -> RunResult,
 	spawn: (SpawnOptionsConcurrent) -> SpawnHandleResult,
 	watch: (RunOptions) -> any,
+	exit: (code: number?) -> (),
 }
 
 return {} :: process

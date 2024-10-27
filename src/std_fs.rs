@@ -1,5 +1,6 @@
 use mlua::prelude::*;
 use std::{fs, io};
+use io::Write;
 use regex::Regex;
 use crate::table_helpers::TableBuilder;
 
@@ -136,17 +137,42 @@ type WriteFileOptions = {
 }
 ```
 */
-fn write_file(_luau: &Lua, t: LuaTable) -> LuaResult<LuaValue> {
-    let file_path: LuaValue = t.get("path")?;
-    let content: LuaValue = t.get("content")?;
-    let _should_overwrite: LuaValue = t.get("overwrite")?;
+fn write_file(_luau: &Lua, write_file_options: LuaValue) -> LuaResult<LuaValue> {
+    match write_file_options {
+        LuaValue::Table(options) => {
+            let file_path = match options.get("path")? {
+                LuaValue::String(p) => p.to_string_lossy(),
+                other => {
+                    panic!("WriteFileOptions expected path to be a string, got: {:?}", other);
+                }
+            };
+            let file_content = match options.get("content")? {
+                LuaValue::String(c) => c.to_string_lossy(),
+                other => {
+                    panic!("WriteFileOptions expected content to be a string, got: {:?}", other);
+                }
+            };
+            let should_overwrite = match options.get("overwrite")? {
+                LuaValue::Boolean(b) => if b == true {true} else {false},
+                LuaValue::Nil => false,
+                other => {
+                    panic!("WriteFileOptions expected overwrite to be a boolean or nil, got: {:?}", other);
+                }
+            };
 
-    if file_path.is_string() && content.is_string() {
-        // let result_table = luau.create_table()?;
-        // result_table
-        Ok(LuaNil)
-    } else {
-        Err(LuaError::runtime("fs.writefile table must contain keys \"path\" and \"content\""))
+            if !fs::metadata(file_path.clone()).is_ok() || should_overwrite {
+                let mut new_file = fs::File::create(file_path)?;
+                new_file.write_all(file_content.as_bytes())?;
+                Ok(LuaNil)
+            } else {
+                let err_message = format!("{:?} already exists! Use WriteFileOptions.overwrite = true to overwrite.", file_path);
+                Err(LuaError::external(err_message))
+            }
+        },
+        _ => {
+            let err_message = format!("fs.writefile expected WriteFileOptions table ({{path: string, content: string, overwrite: boolean?}}, got {:?})", write_file_options);
+            Err(LuaError::external(err_message))
+        }
     }
 
 }
