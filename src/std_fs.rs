@@ -1,6 +1,7 @@
 use mlua::prelude::*;
 use std::{fs, io};
 use io::Write;
+
 use regex::Regex;
 use crate::table_helpers::TableBuilder;
 
@@ -127,6 +128,88 @@ fn exists(_luau: &Lua, file_path: String) -> LuaResult<bool> {
     }
 }
 
+fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
+    let grab_file_ext_re = Regex::new(r"\.([a-zA-Z0-9]+)$").unwrap();
+    let metadata = fs::metadata(entry_path)?;
+    let entry_table = luau.create_table()?;
+    if metadata.is_dir() {
+        entry_table.set("type", "Directory")?;
+        entry_table.set("path", entry_path)?;
+        entry_table.set("entries", luau.create_function({
+          let entry_path = entry_path.to_string();
+            move | luau, _s: LuaMultiValue | {
+                get_entries(luau, entry_path.clone())
+            }
+        })?)?;
+        entry_table.set("list", luau.create_function({
+        let entry_path = entry_path.to_string();
+            move | luau, _s: LuaMultiValue | {
+                list_dir(luau, entry_path.clone())
+            }
+        })?)?;
+    } else {
+        let extension = {
+            if let Some(captures) = grab_file_ext_re.captures(entry_path) {
+                String::from(&captures[1])
+            } else {
+                String::from("")
+            }
+        };
+
+        entry_table.set("type", "File")?;
+        entry_table.set("path", entry_path)?;
+        entry_table.set("extension", extension)?;
+        entry_table.set("read", luau.create_function({
+            let entry_path = entry_path.to_string();
+            move | _luau, _s: LuaMultiValue | {
+                Ok(fs::read_to_string(entry_path.clone())?)
+            }
+        })?)?;
+    }
+    Ok(entry_table)
+}
+
+fn fs_find(luau: &Lua, query: LuaValue) -> LuaResult<LuaValue> {
+    match query {
+        LuaValue::String(q) => {
+            let q = q.to_str()?.to_string();
+            if fs::exists(&q)? {
+                Ok(LuaValue::Table(create_entry_table(luau, &q)?))
+            } else {
+                Ok(LuaNil)
+            }
+        },
+        LuaValue::Table(q) => {
+            if let LuaValue::String(dir_path) = q.get("directory")? {
+                let dir_path = dir_path.to_str()?.to_string();
+                if !fs::exists(&dir_path)? {
+                    Ok(LuaNil)
+                } else if fs::metadata(&dir_path)?.is_dir() {
+                    Ok(LuaValue::Table(create_entry_table(luau, &dir_path)?))
+                } else {
+                    Err(LuaError::external(format!("fs.find: {} is not a directory", &dir_path)))
+                }
+            } else if let LuaValue::String(file_path) = q.get("file")? {
+                let file_path = file_path.to_str()?.to_string();
+                if !fs::exists(&file_path)? {
+                    Ok(LuaNil)
+                } else if fs::metadata(&file_path)?.is_file() {
+                    Ok(LuaValue::Table(create_entry_table(luau, &file_path)?))
+                } else {
+                    Err(LuaError::external(format!("fs.find: {} is not a file", &file_path)))
+                }
+            } else {
+                Err(LuaError::external("fs.find{} expected to be called with keys 'directory' or 'file', got neither"))
+            }
+        },
+        other => {
+            let err_message = format!("fs.find expected string or FindQuery, got: {:?}", other);
+            Err(LuaError::external(err_message))
+        }
+    }
+}
+
+
 /**
 expects table in format of
 ```luau
@@ -184,6 +267,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("exists", exists)?
         .with_function("list", list_dir)?
         .with_function("entries", get_entries)?
+        .with_function("find", fs_find)?
         .build_readonly()?;
 
     Ok(std_fs)
