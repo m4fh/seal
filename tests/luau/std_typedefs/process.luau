@@ -31,6 +31,7 @@ type SpawnHandleResult = {
 type process = {
 	run: (RunOptions) -> RunResult,
 	spawn: (SpawnOptionsConcurrent) -> SpawnHandleResult,
+	setexitcallback: ((number) -> ()) -> (),
 	watch: (RunOptions) -> any,
 	exit: (code: number?) -> (),
 }

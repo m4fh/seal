@@ -1,9 +1,9 @@
 use mlua::prelude::*;
 use std::{fs, env, process};
 
-mod std_fs;
 mod table_helpers;
 mod output;
+mod std_fs;
 mod std_process;
 mod std_env;
 
@@ -53,12 +53,16 @@ fn main() -> LuaResult<()> {
     luau.globals().set("p", luau.create_function(output::debug_print)?)?;
     luau.globals().set("print", luau.create_function(output::pretty_print)?)?;
 
-    match luau.load(luau_code).exec() {
+    let result = match luau.load(luau_code).exec() {
         Ok(()) => Ok(()),
         Err(err) => {
             eprintln!("{err}");
             process::exit(1);
         }
-    }
+    };
+
+    std_process::handle_exit_callback(&luau, 0)?;
+
+    result
 
 }

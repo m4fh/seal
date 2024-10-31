@@ -87,7 +87,39 @@ fn run_program(luau: &Lua, run_options: LuaValue) -> LuaResult<LuaTable> {
 	
 }
 
-fn exit(_luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
+fn set_exit_callback(luau: &Lua, f: Option<LuaValue>) -> LuaResult<LuaValue> {
+	if let Some(f) = f {
+		match f {
+			LuaValue::Function(f) => {
+				let globals = luau.globals();
+				globals.set("_process_exit_callback_function", f)?;
+				Ok(LuaNil)
+			}, 
+			_ => {
+				let err_message = format!("process.setexitcallback expected to be called with a function, got {:?}", f);
+				Err(LuaError::external(err_message))
+			}
+		}
+	} else {
+		let err_message = format!("process.setexitcallback expected to be called with a function, got {:?}", f);
+		Err(LuaError::external(err_message))
+	}
+}
+
+pub fn handle_exit_callback(luau: &Lua, exit_code: i32) -> LuaResult<()> {
+	match luau.globals().get("_process_exit_callback_function")? {
+		LuaValue::Function(f) => {
+			let _ = f.call::<i32>(exit_code);
+		},
+		LuaValue::Nil => {},
+		_ => {
+			unreachable!("what did you put into _process_exit_callback_function???");
+		}
+	}
+	Ok(())
+}
+
+fn exit(luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
     let exit_code = if let Some(exit_code) = exit_code {
         match exit_code {
             LuaValue::Integer(i) => i as i32,
@@ -98,6 +130,19 @@ fn exit(_luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
     } else {
         0 as i32
     };
+	// if we have custom callback function let's call it 
+	let globals = luau.globals();
+	match globals.get("_process_exit_callback_function")? {
+		LuaValue::Function(f) => {
+			f.call::<i32>(exit_code)?;
+		},
+		LuaValue::Nil => {
+			
+		},
+		_ => {
+			unreachable!("wtf is in _process_exit_callback_function other than a function or nil?")
+		}
+	}
     process::exit(exit_code);
 }
 
@@ -105,6 +150,7 @@ fn exit(_luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
 	TableBuilder::create(luau)?
 		.with_function("run", run_program)?
+		.with_function("setexitcallback", set_exit_callback)?
         .with_function("exit", exit)?
 		.build_readonly()
 }
