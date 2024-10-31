@@ -1,5 +1,5 @@
 [package]
-name = "basic-luau"
+name = "smoluau"
 version = "0.1.0"
 edition = "2021"
 
