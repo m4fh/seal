@@ -6,6 +6,7 @@ mod output;
 mod std_fs;
 mod std_process;
 mod std_env;
+mod std_json;
 
 fn require(luau: &Lua, path: String) -> LuaResult<LuaValue> {
     if path.starts_with("@std") {
@@ -13,6 +14,7 @@ fn require(luau: &Lua, path: String) -> LuaResult<LuaValue> {
             "@std/fs" => Ok(LuaValue::Table(std_fs::create(luau)?)),
             "@std/env" => Ok(LuaValue::Table(std_env::create(luau)?)),
             "@std/process" => Ok(LuaValue::Table(std_process::create(luau)?)),
+            "@std/json" => Ok(LuaValue::Table(std_json::create(luau)?)),
             "@std/prettify" => Ok(LuaValue::Function(luau.create_function(output::prettify_output)?)),
             _ => {
                 Err(LuaError::external(format!("program required an unexpected standard library: \"{}\"", &path)))

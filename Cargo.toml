@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-mlua = {version = "0.10.0", features = ["luau", "async"]}
+mlua = {version = "0.10.0", features = ["luau", "async", "serialize"]}
 regex = "1.11.1"
+serde_json = {version = "1.0", features = ["arbitrary_precision"]}
 

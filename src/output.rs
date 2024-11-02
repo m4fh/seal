@@ -147,6 +147,13 @@ fn process_pretty_values(value: LuaValue, result: &mut String, depth: usize) -> 
 			let formatted_function = format!("{RED}<{stringified_function}>{RESET}");
 			result.push_str(&formatted_function);
 		},
+        LuaValue::Boolean(b) => {
+            let formatted_bool = format!("{GREEN}{b}{RESET}");
+            result.push_str(&formatted_bool);
+        },
+        LuaValue::Nil => {
+            result.push_str(&format!("{RED}nil{RESET}"));
+        },
 		_ => {
 			result.push_str(&format!("{:?}", value));
 		}
