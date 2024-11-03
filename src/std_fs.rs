@@ -101,7 +101,7 @@ fn get_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
     }
 }
 
-fn read_file(_: &Lua, file_path: String) -> LuaResult<String> {
+pub fn read_file(_: &Lua, file_path: String) -> LuaResult<String> {
     let result = match fs::read_to_string(&file_path) {
         Ok(content) => Ok(content),
         Err(err) => {
@@ -114,6 +114,56 @@ fn read_file(_: &Lua, file_path: String) -> LuaResult<String> {
         }
     };
     Ok(result?)
+}
+
+/**
+expects table in format of
+```luau
+type WriteFileOptions = {
+    path: string,
+    content: string,
+    overwrite: boolean?,
+}
+```
+*/
+pub fn write_file(_luau: &Lua, write_file_options: LuaValue) -> LuaResult<LuaValue> {
+    match write_file_options {
+        LuaValue::Table(options) => {
+            let file_path = match options.get("path")? {
+                LuaValue::String(p) => p.to_string_lossy(),
+                other => {
+                    panic!("WriteFileOptions expected path to be a string, got: {:?}", other);
+                }
+            };
+            let file_content = match options.get("content")? {
+                LuaValue::String(c) => c.to_string_lossy(),
+                other => {
+                    panic!("WriteFileOptions expected content to be a string, got: {:?}", other);
+                }
+            };
+            let should_overwrite = match options.get("overwrite")? {
+                LuaValue::Boolean(b) => if b == true {true} else {false},
+                LuaValue::Nil => false,
+                other => {
+                    panic!("WriteFileOptions expected overwrite to be a boolean or nil, got: {:?}", other);
+                }
+            };
+
+            if !fs::metadata(file_path.clone()).is_ok() || should_overwrite {
+                let mut new_file = fs::File::create(file_path)?;
+                new_file.write_all(file_content.as_bytes())?;
+                Ok(LuaNil)
+            } else {
+                let err_message = format!("{:?} already exists! Use WriteFileOptions.overwrite = true to overwrite.", file_path);
+                Err(LuaError::external(err_message))
+            }
+        },
+        _ => {
+            let err_message = format!("fs.writefile expected WriteFileOptions table ({{path: string, content: string, overwrite: boolean?}}, got {:?})", write_file_options);
+            Err(LuaError::external(err_message))
+        }
+    }
+
 }
 
 fn does_file_exist(file_path: String) -> bool {
@@ -207,57 +257,6 @@ fn fs_find(luau: &Lua, query: LuaValue) -> LuaResult<LuaValue> {
             Err(LuaError::external(err_message))
         }
     }
-}
-
-
-/**
-expects table in format of
-```luau
-type WriteFileOptions = {
-    path: string,
-    content: string,
-    overwrite: boolean?,
-}
-```
-*/
-fn write_file(_luau: &Lua, write_file_options: LuaValue) -> LuaResult<LuaValue> {
-    match write_file_options {
-        LuaValue::Table(options) => {
-            let file_path = match options.get("path")? {
-                LuaValue::String(p) => p.to_string_lossy(),
-                other => {
-                    panic!("WriteFileOptions expected path to be a string, got: {:?}", other);
-                }
-            };
-            let file_content = match options.get("content")? {
-                LuaValue::String(c) => c.to_string_lossy(),
-                other => {
-                    panic!("WriteFileOptions expected content to be a string, got: {:?}", other);
-                }
-            };
-            let should_overwrite = match options.get("overwrite")? {
-                LuaValue::Boolean(b) => if b == true {true} else {false},
-                LuaValue::Nil => false,
-                other => {
-                    panic!("WriteFileOptions expected overwrite to be a boolean or nil, got: {:?}", other);
-                }
-            };
-
-            if !fs::metadata(file_path.clone()).is_ok() || should_overwrite {
-                let mut new_file = fs::File::create(file_path)?;
-                new_file.write_all(file_content.as_bytes())?;
-                Ok(LuaNil)
-            } else {
-                let err_message = format!("{:?} already exists! Use WriteFileOptions.overwrite = true to overwrite.", file_path);
-                Err(LuaError::external(err_message))
-            }
-        },
-        _ => {
-            let err_message = format!("fs.writefile expected WriteFileOptions table ({{path: string, content: string, overwrite: boolean?}}, got {:?})", write_file_options);
-            Err(LuaError::external(err_message))
-        }
-    }
-
 }
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {

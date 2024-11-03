@@ -1,11 +1,12 @@
 {
 	"luau-lsp.require.directoryAliases": {
-		"@std": "./tests/luau/std_typedefs/"
+		"@std": "./typedefs/std/"
 	},
 	"luau-lsp.fflags.override": {
 		"LuauSolverV2": "true"
 	},
+	"luau-lsp.types.definitionFiles": ["typedefs/globals.d.luau"],
 	"code-runner.executorMap": {
-		"luau": "cargo build; ./target/debug/basic-luau ",
+		"luau": "cargo build; ./target/debug/smoluau ",
 	}
 }

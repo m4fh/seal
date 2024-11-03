@@ -3,42 +3,42 @@
 use regex::Regex;
 use mlua::prelude::*;
 
-const RESET: &str = "\x1b[0m";
-const BLACK: &str = "\x1b[30m";
-const RED: &str = "\x1b[31m";
-const GREEN: &str = "\x1b[32m";
-const YELLOW: &str = "\x1b[33m";
-const BLUE: &str = "\x1b[34m";
-const MAGENTA: &str = "\x1b[35m";
-const CYAN: &str = "\x1b[36m";
-const WHITE: &str = "\x1b[37m";
+pub const RESET: &str = "\x1b[0m";
+pub const BLACK: &str = "\x1b[30m";
+pub const RED: &str = "\x1b[31m";
+pub const GREEN: &str = "\x1b[32m";
+pub const YELLOW: &str = "\x1b[33m";
+pub const BLUE: &str = "\x1b[34m";
+pub const MAGENTA: &str = "\x1b[35m";
+pub const CYAN: &str = "\x1b[36m";
+pub const WHITE: &str = "\x1b[37m";
 
-const BRIGHT_BLACK: &str = "\x1b[90m";
-const BRIGHT_RED: &str = "\x1b[91m";
-const BRIGHT_GREEN: &str = "\x1b[92m";
-const BRIGHT_YELLOW: &str = "\x1b[93m";
-const BRIGHT_BLUE: &str = "\x1b[94m";
-const BRIGHT_MAGENTA: &str = "\x1b[95m";
-const BRIGHT_CYAN: &str = "\x1b[96m";
-const BRIGHT_WHITE: &str = "\x1b[97m";
+pub const BRIGHT_BLACK: &str = "\x1b[90m";
+pub const BRIGHT_RED: &str = "\x1b[91m";
+pub const BRIGHT_GREEN: &str = "\x1b[92m";
+pub const BRIGHT_YELLOW: &str = "\x1b[93m";
+pub const BRIGHT_BLUE: &str = "\x1b[94m";
+pub const BRIGHT_MAGENTA: &str = "\x1b[95m";
+pub const BRIGHT_CYAN: &str = "\x1b[96m";
+pub const BRIGHT_WHITE: &str = "\x1b[97m";
 
-const BLACK_BG: &str = "\x1b[40m";
-const RED_BG: &str = "\x1b[41m";
-const GREEN_BG: &str = "\x1b[42m";
-const YELLOW_BG: &str = "\x1b[43m";
-const BLUE_BG: &str = "\x1b[44m";
-const MAGENTA_BG: &str = "\x1b[45m";
-const CYAN_BG: &str = "\x1b[46m";
-const WHITE_BG: &str = "\x1b[47m";
+pub const BLACK_BG: &str = "\x1b[40m";
+pub const RED_BG: &str = "\x1b[41m";
+pub const GREEN_BG: &str = "\x1b[42m";
+pub const YELLOW_BG: &str = "\x1b[43m";
+pub const BLUE_BG: &str = "\x1b[44m";
+pub const MAGENTA_BG: &str = "\x1b[45m";
+pub const CYAN_BG: &str = "\x1b[46m";
+pub const WHITE_BG: &str = "\x1b[47m";
 
-const BRIGHT_BLACK_BG: &str = "\x1b[100m";
-const BRIGHT_RED_BG: &str = "\x1b[101m";
-const BRIGHT_GREEN_BG: &str = "\x1b[102m";
-const BRIGHT_YELLOW_BG: &str = "\x1b[103m";
-const BRIGHT_BLUE_BG: &str = "\x1b[104m";
-const BRIGHT_MAGENTA_BG: &str = "\x1b[105m";
-const BRIGHT_CYAN_BG: &str = "\x1b[106m";
-const BRIGHT_WHITE_BG: &str = "\x1b[107m";
+pub const BRIGHT_BLACK_BG: &str = "\x1b[100m";
+pub const BRIGHT_RED_BG: &str = "\x1b[101m";
+pub const BRIGHT_GREEN_BG: &str = "\x1b[102m";
+pub const BRIGHT_YELLOW_BG: &str = "\x1b[103m";
+pub const BRIGHT_BLUE_BG: &str = "\x1b[104m";
+pub const BRIGHT_MAGENTA_BG: &str = "\x1b[105m";
+pub const BRIGHT_CYAN_BG: &str = "\x1b[106m";
+pub const BRIGHT_WHITE_BG: &str = "\x1b[107m";
 
 fn process_raw_values(value: LuaValue, result: &mut String, depth: usize) -> LuaResult<()> {
 	let left_padding = " ".repeat(2 * depth);

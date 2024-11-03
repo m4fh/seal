@@ -1,0 +1,3 @@
+declare function pcall(protected_callback: any): (boolean, unknown)
+
+declare function p<T...>(...: T...): T...
