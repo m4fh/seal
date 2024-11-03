@@ -1,3 +1,10 @@
-type time = {
-	wait: (seconds: number) -> ()
-}
+local time = {}
+
+--- Waits `seconds` in the current program thread (implemented with Rust's `thread::sleep`)
+function time.wait(seconds: number): ()
+	return nil :: any
+end
+
+type time = typeof(time)
+
+return time

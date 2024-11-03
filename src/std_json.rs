@@ -48,7 +48,7 @@ fn parse_fix_numbers_rec(luau: &Lua, t: LuaTable) -> LuaResult<LuaValue> {
     Ok(LuaValue::Table(t))
 }
 
-fn json_decode(luau: &Lua, json: String) -> LuaResult<LuaValue> {
+pub fn json_decode(luau: &Lua, json: String) -> LuaResult<LuaValue> {
     let json_result: serde_json::Value = serde_json::from_str(&json).map_err(LuaError::external)?;
     let luau_result = LuaTable::from_lua(luau.to_value(&json_result)?, luau)?;
     // unfortunately there seems to be a serde issue between mlua and serde_json that causes numbers to be incorrectly

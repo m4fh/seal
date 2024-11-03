@@ -1,9 +1,11 @@
 use mlua::prelude::*;
+use std::fs::remove_dir_all;
 use std::{fs, io};
 use io::Write;
 
 use regex::Regex;
-use crate::table_helpers::TableBuilder;
+use crate::{table_helpers::TableBuilder, LuaValueResult};
+use crate::{err_handling as errs, wrap_err, std_io_colors as colors};
 
 fn list_dir(luau: &Lua, path: String) -> LuaResult<LuaTable> {
     match fs::metadata(&path) {
@@ -86,7 +88,8 @@ fn get_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
                 };
                 Ok(entries_dictionary)
             } else {
-                Err(LuaError::external("Attempt to list files/entries of path, but path is a file itself"))
+                wrap_err!("Attempt to list files/entries of a path, but path is a file itself!")
+                // Err(LuaError::external("Attempt to list files/entries of path, but path is a file itself"))
             }
             
         },
@@ -126,7 +129,7 @@ type WriteFileOptions = {
 }
 ```
 */
-pub fn write_file(_luau: &Lua, write_file_options: LuaValue) -> LuaResult<LuaValue> {
+pub fn write_file(_luau: &Lua, write_file_options: LuaValue) -> LuaValueResult {
     match write_file_options {
         LuaValue::Table(options) => {
             let file_path = match options.get("path")? {
@@ -143,7 +146,7 @@ pub fn write_file(_luau: &Lua, write_file_options: LuaValue) -> LuaResult<LuaVal
             };
             let should_overwrite = match options.get("overwrite")? {
                 LuaValue::Boolean(b) => if b == true {true} else {false},
-                LuaValue::Nil => false,
+                LuaValue::Nil => true,
                 other => {
                     panic!("WriteFileOptions expected overwrite to be a boolean or nil, got: {:?}", other);
                 }
@@ -197,6 +200,12 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
                 list_dir(luau, entry_path.clone())
             }
         })?)?;
+        entry_table.set("remove", luau.create_function({
+            let entry_path = entry_path.to_string();
+            move | _luau, _s: LuaMultiValue | {
+                Ok(fs::remove_dir_all(entry_path.clone())?)
+            }
+        })?)?;
     } else {
         let extension = {
             if let Some(captures) = grab_file_ext_re.captures(entry_path) {
@@ -215,11 +224,83 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
                 Ok(fs::read_to_string(entry_path.clone())?)
             }
         })?)?;
+        entry_table.set("remove", luau.create_function({
+            let entry_path = entry_path.to_string();
+            move | _luau, _s: LuaMultiValue | {
+                Ok(fs::remove_file(entry_path.clone())?)
+                // Ok(fs::read_to_string(entry_path.clone())?)
+            }
+        })?)?;
     }
     Ok(entry_table)
 }
 
-fn fs_find(luau: &Lua, query: LuaValue) -> LuaResult<LuaValue> {
+fn is_dir_empty(path: &str) -> bool {
+    match fs::read_dir(&path) {
+        Ok(mut entries) => entries.next().is_none(),
+        Err(_) => {
+            panic!("Error reading path {}", &path);
+        }, 
+    }
+}
+
+pub fn fs_remove(_luau: &Lua, remove_options: LuaValue) -> LuaValueResult {
+    match remove_options {
+        LuaValue::Table(options) => {
+            if let LuaValue::String(path) = options.get("file")? {
+                let path = path.to_str()?.to_string();
+                fs::remove_file(&path)?;
+                Ok(LuaNil)
+            } else if let LuaValue::String(directory_path) = options.get("directory")? {
+                let directory_path = directory_path.to_str()?.to_string();
+                // let force = options.get("force")?;
+
+                match options.get("force")? {
+                    LuaValue::Boolean(force) => {
+                        if force {
+                            if directory_path.starts_with("/") {
+                                match options.get("remove_absolute_path")? {
+                                    LuaValue::Boolean(safety_override) => {
+                                        if safety_override {
+                                            remove_dir_all(&directory_path)?;
+                                        } else {
+                                            return wrap_err!("fs.remove: attempted to remove a directory by absolute path.\nThis could be a critical directory, so please be careful. Directory: {}. If you're absolutely sure your code cannot unintentionally destroy a critical directory like /, /root, /boot, or on windows, C:\\System32 or something, then feel free to set RemoveDirectoryOptions.remove_absolute_path to true.", &directory_path);
+                                        }
+                                    }, 
+                                    other => {
+                                        return wrap_err!("fs.remove: remove_absolute_path expected to be boolean (default false), you gave me a {:?}, why?", other);
+                                    }
+                                }
+                            } else {
+                                fs::remove_dir_all(&directory_path)?;
+                            }
+                        } else {
+                            if is_dir_empty(&directory_path) {
+                                fs::remove_dir(&directory_path)?;
+                            }
+                        }
+                    },
+                    LuaValue::Nil => {
+                        fs::remove_dir_all(&directory_path)?;
+                    },
+                    other => {
+                        return wrap_err!("fs.remove expected RemoveDirectoryOptions.force to be string? (string or the default, nil), got: {:?}", other);
+                    }
+                }
+
+                Ok(LuaNil)
+            } else {
+                errs::wrap("fs.remove received invalid arguments; expected RemoveOptions.file or RemoveOptions.directory.")
+            }
+            
+        },
+        other => {
+            wrap_err!("fs.remove expected RemoveOptions, got: {}", other.to_string()?)
+        }
+    }
+}
+
+fn fs_find(luau: &Lua, query: LuaValue) -> LuaValueResult {
     match query {
         LuaValue::String(q) => {
             let q = q.to_str()?.to_string();
@@ -249,7 +330,7 @@ fn fs_find(luau: &Lua, query: LuaValue) -> LuaResult<LuaValue> {
                     Err(LuaError::external(format!("fs.find: {} is not a file", &file_path)))
                 }
             } else {
-                Err(LuaError::external("fs.find{} expected to be called with keys 'directory' or 'file', got neither"))
+                Err(LuaError::external("fs.find expected to be called with keys 'directory' or 'file', got neither"))
             }
         },
         other => {
@@ -263,6 +344,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     let std_fs = TableBuilder::create(luau)?
         .with_function("readfile", read_file)?
         .with_function("writefile", write_file)?
+        .with_function("remove", fs_remove)?
         .with_function("exists", exists)?
         .with_function("list", list_dir)?
         .with_function("entries", get_entries)?
