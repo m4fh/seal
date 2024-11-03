@@ -13,7 +13,6 @@ local debuggy = p("hi") -- debug print that prints the runtime/Rust mlua types; 
 -- standard libs are in @std/libname and can be required as so:
 local fs = require("@std/fs")
 local process = require("@std/process")
-local env = require("@std/env")
 local io = require("@std/io")
 local colors = require("@std/io/colors")
 local json = require("@std/json")
@@ -25,14 +24,16 @@ local guided_tour = fs.readfile("./typedefs/guided_tour.luau")
 fs.writefile({
 	path = "./my_path.txt",
 	content = "huh",
-	overwrite = true, -- overwrite is false by default and can be omitted
+	overwrite = true, -- overwrite is true by default and can be omitted
 })
 
--- to delete that file we just made, use fs.remove
-fs.remove { file = "./my_path.txt"}
-
 -- to get a file or directory's Entry, use fs.find (it returns nil if not found)
-local src_entry = fs.find("./src")
+local src_entry = fs.find("./my_path.txt")
+local huh_text = pp(src_entry:read())
+
+
+-- to delete that file we just made, use fs.remove
+fs.remove { file = "./my_path.txt" }
 
 -- to iterate over all entries in a directory, use fs.entries
 for path, entry in fs.entries("./typedefs") do 
@@ -45,7 +46,29 @@ for path, entry in fs.entries("./typedefs") do
 	end
 end
 
--- to run/spawn/execute a new process, use process.run
-process.run {
-	program = "ls"
+-- to run/execute a new process, use process.run
+local files_res = process.run {
+	program = "ls",
+	shell = "zsh",
 }
+
+local files = if files_res.ok then files_res.out else nil
+print(files)
+
+-- you can get tons of mileage outta running arbitrary processes
+
+-- use the env lib to get cli args and learn cool stuff about the hosting process
+local env = require("@std/env")
+local basic_script = fs.writefile {
+	path = "./print_args.luau",
+	content = "local args = require('@std/env').args; pp(args)"
+}
+local res = process.run {
+	program = `{env.executable_path} ./print_args.luau who am i`,
+	shell = if env.os == "Windows" then "powershell" else "sh"
+}
+print(`args from spawned program: {if res.ok then res.out else nil}`)
+
+fs.remove { file = "./print_args.luau" }
+assert(fs.find { file = "./print_args.luau" } == nil)
+
