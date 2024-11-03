@@ -340,6 +340,30 @@ fn fs_find(luau: &Lua, query: LuaValue) -> LuaValueResult {
     }
 }
 
+fn fs_create(luau: &Lua, new_options: LuaValue) -> LuaValueResult {
+    match new_options {
+        LuaValue::Table(options) => {
+            if let LuaValue::String(file_path) = options.get("file")? {
+                let writefile_options = TableBuilder::create(luau)?
+                    .with_value("file", file_path)?
+                    .with_value("content", "")?
+                    .build()?;
+                write_file(luau, LuaValue::Table(writefile_options))?;
+                Ok(LuaNil)
+            } else if let LuaValue::String(directory_path) = options.get("directory")? {
+                let directory_path = directory_path.to_str()?.to_string();
+                fs::create_dir(directory_path)?;
+                Ok(LuaNil)
+            } else {
+                wrap_err!("fs.create expected table fields 'file' or 'directory', got neither")
+            }
+        },
+        other => {
+            wrap_err!("fs.create expected to be called with table of type {{ file: string }} or {{ directory: string }}, got {:?}", other)
+        }
+    }
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     let std_fs = TableBuilder::create(luau)?
         .with_function("readfile", read_file)?
@@ -349,6 +373,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("list", list_dir)?
         .with_function("entries", get_entries)?
         .with_function("find", fs_find)?
+        .with_function("create", fs_create)?
         .build_readonly()?;
 
     Ok(std_fs)

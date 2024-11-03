@@ -69,9 +69,20 @@ fn main() -> LuaResult<()> {
         panic!("Bad usage: did you forget to pass me a file?")
     }
     
-    let luau_code: String = {
-        let file_path = args[1].clone();
+    let luau_code: String =  'gotcoded: {
+        let first_arg = args[1].clone();
 
+        if first_arg == "eval" {
+            let table = LuaValue::Table;
+            let globals = luau.globals();
+            globals.set("fs", table(std_fs::create(&luau)?))?;
+            globals.set("process", table(std_process::create(&luau)?))?;
+            globals.set("net", table(std_net::create(&luau)?))?;
+            break 'gotcoded args[2].clone();
+        };
+
+        let file_path = first_arg;
+ 
         if file_path.ends_with(".lua") {
             panic!("wrong language!! this runtime is meant for the Luau language, if you want to run .lua files, pick another runtime please.");
         } else if !fs::metadata(&file_path).is_ok() {
