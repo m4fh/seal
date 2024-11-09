@@ -304,7 +304,7 @@ fn fs_find(luau: &Lua, query: LuaValue) -> LuaValueResult {
     match query {
         LuaValue::String(q) => {
             let q = q.to_str()?.to_string();
-            if fs::exists(&q)? {
+            if exists(luau, q.clone())? {
                 Ok(LuaValue::Table(create_entry_table(luau, &q)?))
             } else {
                 Ok(LuaNil)
@@ -313,24 +313,30 @@ fn fs_find(luau: &Lua, query: LuaValue) -> LuaValueResult {
         LuaValue::Table(q) => {
             if let LuaValue::String(dir_path) = q.get("directory")? {
                 let dir_path = dir_path.to_str()?.to_string();
-                if !fs::exists(&dir_path)? {
-                    Ok(LuaNil)
-                } else if fs::metadata(&dir_path)?.is_dir() {
-                    Ok(LuaValue::Table(create_entry_table(luau, &dir_path)?))
+                let dir_metadata = fs::metadata(&dir_path);
+                if dir_metadata.is_ok() {
+                    if dir_metadata?.is_dir() {
+                        Ok(LuaValue::Table(create_entry_table(luau, &dir_path)?))
+                    } else {
+                        wrap_err!("fs.find: {} exists but is not a directory!", &dir_path)
+                    }
                 } else {
-                    Err(LuaError::external(format!("fs.find: {} is not a directory", &dir_path)))
+                    Ok(LuaNil)
                 }
             } else if let LuaValue::String(file_path) = q.get("file")? {
                 let file_path = file_path.to_str()?.to_string();
-                if !fs::exists(&file_path)? {
-                    Ok(LuaNil)
-                } else if fs::metadata(&file_path)?.is_file() {
-                    Ok(LuaValue::Table(create_entry_table(luau, &file_path)?))
+                let file_metadata = fs::metadata(&file_path);
+                if file_metadata.is_ok() {
+                    if file_metadata?.is_file() {
+                        Ok(LuaValue::Table(create_entry_table(luau, &file_path)?))
+                    } else {
+                        wrap_err!("fs.find: {} exists but is not a file!", &file_path)
+                    }
                 } else {
-                    Err(LuaError::external(format!("fs.find: {} is not a file", &file_path)))
+                    Ok(LuaNil)
                 }
             } else {
-                Err(LuaError::external("fs.find expected to be called with keys 'directory' or 'file', got neither"))
+                wrap_err!("fs.find expected to be called with either a string (file or directory path) or a table of type {{file: string}} | {{directory: string}}")
             }
         },
         other => {
