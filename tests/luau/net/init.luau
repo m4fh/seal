@@ -4,17 +4,15 @@ local process = require("@std/process")
 local r = net.get {
 	url = "meow.com"
 }
-process.exit()
-
 local t0 = os.clock()
-local catfact_result: net.GetResponse = net.get("https://catfact.ninja/fact")
+local catfact_result: net.NetResponse = net.get("https://catfact.ninja/fact")
 if catfact_result.ok then
 	print(catfact_result:decode())
 end
 print(`catfact time: {os.clock() - t0}`)
 
 local t1 = os.clock()
-local placeholder: net.GetResponse = net.get("https://jsonplaceholder.typicode.com/posts/1")
+local placeholder: net.NetResponse = net.get("https://jsonplaceholder.typicode.com/posts/1")
 if placeholder.ok then
 	print(placeholder:decode())
 end

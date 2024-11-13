@@ -7,7 +7,7 @@ use regex::Regex;
 use crate::{table_helpers::TableBuilder, LuaValueResult};
 use crate::{err_handling as errs, wrap_err, std_io_colors as colors};
 
-fn list_dir(luau: &Lua, path: String) -> LuaResult<LuaTable> {
+fn fs_listdir(luau: &Lua, path: String) -> LuaResult<LuaTable> {
     match fs::metadata(&path) {
         Ok(t) => {
             if t.is_dir() {
@@ -35,7 +35,7 @@ fn list_dir(luau: &Lua, path: String) -> LuaResult<LuaTable> {
     }
 }
 
-fn get_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
+fn fs_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
     match fs::metadata(&directory_path) {
         Ok(t) => {
             if t.is_dir() {
@@ -53,12 +53,12 @@ fn get_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
                                 entry_table.set("entries", luau.create_function({
                                     let entry_path = entry_path.to_string();
                                     move | luau, _s: LuaMultiValue | {
-                                        get_entries(luau, entry_path.clone())
+                                        fs_entries(luau, entry_path.clone())
                                     }})?)?;
                                 entry_table.set("list", luau.create_function({
                                     let entry_path = entry_path.to_string();
                                     move | luau, _s: LuaMultiValue | {
-                                        list_dir(luau, entry_path.clone())
+                                        fs_listdir(luau, entry_path.clone())
                                     }
                                 })?)?;
                             }
@@ -104,7 +104,7 @@ fn get_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
     }
 }
 
-pub fn read_file(_: &Lua, file_path: String) -> LuaResult<String> {
+pub fn fs_readfile(_: &Lua, file_path: String) -> LuaResult<String> {
     let result = match fs::read_to_string(&file_path) {
         Ok(content) => Ok(content),
         Err(err) => {
@@ -129,7 +129,7 @@ type WriteFileOptions = {
 }
 ```
 */
-pub fn write_file(_luau: &Lua, write_file_options: LuaValue) -> LuaValueResult {
+pub fn fs_writefile(_luau: &Lua, write_file_options: LuaValue) -> LuaValueResult {
     match write_file_options {
         LuaValue::Table(options) => {
             let file_path = match options.get("path")? {
@@ -162,23 +162,14 @@ pub fn write_file(_luau: &Lua, write_file_options: LuaValue) -> LuaValueResult {
             }
         },
         _ => {
-            let err_message = format!("fs.writefile expected WriteFileOptions table ({{path: string, content: string, overwrite: boolean?}}, got {:?})", write_file_options);
-            Err(LuaError::external(err_message))
+            wrap_err!("fs.writefile expected WriteFileOptions table ({{path: string, content: string, overwrite: boolean?}}, got {:?})", write_file_options)
         }
     }
 
 }
 
-fn does_file_exist(file_path: String) -> bool {
+fn does_file_exist(file_path: &str) -> bool {
     fs::metadata(&file_path).is_ok()
-}
-
-fn exists(_luau: &Lua, file_path: String) -> LuaResult<bool> {
-    if does_file_exist(file_path) {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
 }
 
 fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
@@ -189,21 +180,77 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
         entry_table.set("type", "Directory")?;
         entry_table.set("path", entry_path)?;
         entry_table.set("entries", luau.create_function({
-          let entry_path = entry_path.to_string();
+            let entry_path = entry_path.to_string();
             move | luau, _s: LuaMultiValue | {
-                get_entries(luau, entry_path.clone())
+                fs_entries(luau, entry_path.clone())
             }
         })?)?;
         entry_table.set("list", luau.create_function({
-        let entry_path = entry_path.to_string();
+            let entry_path = entry_path.to_string();
             move | luau, _s: LuaMultiValue | {
-                list_dir(luau, entry_path.clone())
+                fs_listdir(luau, entry_path.clone())
+            }
+        })?)?;
+        entry_table.set("find", luau.create_function({
+            let entry_path = entry_path.to_string();
+            move | luau, mut multivalue: LuaMultiValue | {
+                let _self = multivalue.pop_front();
+                let find_options = multivalue.pop_front().unwrap();
+                match find_options {
+                    LuaValue::String(find_path) => {
+                        let new_path = format!("{entry_path}/{}", find_path.to_str()?.to_string());
+                        Ok(fs_find(luau, new_path.into_lua(luau)?))
+                    }, 
+                    LuaValue::Table(find_table) => {
+                        if let LuaValue::String(file_path) = find_table.get("file")? {
+                            let new_path = format!("{entry_path}/{}", file_path.to_str()?.to_string());
+                            find_table.set("file", new_path)?;
+                        }
+                        Ok(fs_find(luau, LuaValue::Table(find_table)))
+                    },
+                    other => {
+                        wrap_err!("DirectoryEntry:find expected string or FindConfig table, got: {:?}", other)
+                    }
+                }
+                // fs_listdir(luau, entry_path.clone())
             }
         })?)?;
         entry_table.set("remove", luau.create_function({
             let entry_path = entry_path.to_string();
             move | _luau, _s: LuaMultiValue | {
                 Ok(fs::remove_dir_all(entry_path.clone())?)
+            }
+        })?)?;
+        entry_table.set("create", luau.create_function({
+            let entry_path = entry_path.to_string();
+            move | luau, mut multivalue: LuaMultiValue | {
+                let _self = multivalue.pop_front();
+                let value = multivalue.pop_front().unwrap();
+                let prepended_entry = match value {
+                    LuaValue::Table(v) => {
+                        if let LuaValue::String(new_path) = v.get("directory")? {
+                            let new_path = new_path.to_str()?.to_string();
+                            v.set("directory", format!("{entry_path}/{new_path}"))?;
+                            Ok(LuaValue::Table(v))
+                        } else if let LuaValue::String(new_path) = v.get("file")? {
+                            let new_path = new_path.to_str()?.to_string();
+                            v.set("file",format!("{entry_path}/{new_path}"))?;
+                            Ok(LuaValue::Table(v))
+                        } else if let LuaValue::Table(file_info) = v.get("file")? {
+                            if let LuaValue::String(file_name) = file_info.get("name")? {
+                                let file_name = file_name.to_str()?.to_string();
+                                let new_path = format!("{entry_path}/{file_name}");
+                                file_info.set("name", new_path)?;
+                            };
+                            Ok(LuaValue::Table(v))
+                        } else {
+                            println!("{:#?}", v);
+                            todo!()
+                        }
+                    },
+                    other => wrap_err!("DirectoryEntry:create for {} expected to be called with a table containing key 'dictionary' or key 'string', got {:?}", &entry_path, other)
+                };
+                fs_create(luau, prepended_entry?)
             }
         })?)?;
     } else {
@@ -228,11 +275,35 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
             let entry_path = entry_path.to_string();
             move | _luau, _s: LuaMultiValue | {
                 Ok(fs::remove_file(entry_path.clone())?)
-                // Ok(fs::read_to_string(entry_path.clone())?)
             }
         })?)?;
     }
     Ok(entry_table)
+}
+
+
+pub fn fs_move(_luau: &Lua, from_to: LuaMultiValue) -> LuaValueResult {
+    let mut multivalue = from_to.clone();
+    let from = multivalue.pop_front().unwrap_or(LuaNil);
+    let from_path = {
+        match from {
+            LuaValue::String(from) => from.to_str()?.to_string(),
+            other => {
+                return wrap_err!("fs.move: 'from' argument expected to be string path, got {:?}", other);
+            }
+        }
+    };
+    let to = multivalue.pop_front().unwrap_or(LuaNil);
+    let to_path = {
+        match to {
+            LuaValue::String(to) => to.to_str()?.to_string(),
+            other => {
+                return wrap_err!("fs.move: 'to' argument expected to be string path, got {:?}", other)
+            }
+        }
+    };
+    std::fs::rename(from_path, to_path)?;
+    Ok(LuaNil)
 }
 
 fn is_dir_empty(path: &str) -> bool {
@@ -253,8 +324,6 @@ pub fn fs_remove(_luau: &Lua, remove_options: LuaValue) -> LuaValueResult {
                 Ok(LuaNil)
             } else if let LuaValue::String(directory_path) = options.get("directory")? {
                 let directory_path = directory_path.to_str()?.to_string();
-                // let force = options.get("force")?;
-
                 match options.get("force")? {
                     LuaValue::Boolean(force) => {
                         if force {
@@ -304,7 +373,7 @@ fn fs_find(luau: &Lua, query: LuaValue) -> LuaValueResult {
     match query {
         LuaValue::String(q) => {
             let q = q.to_str()?.to_string();
-            if exists(luau, q.clone())? {
+            if does_file_exist(&q) {
                 Ok(LuaValue::Table(create_entry_table(luau, &q)?))
             } else {
                 Ok(LuaNil)
@@ -340,8 +409,7 @@ fn fs_find(luau: &Lua, query: LuaValue) -> LuaValueResult {
             }
         },
         other => {
-            let err_message = format!("fs.find expected string or FindQuery, got: {:?}", other);
-            Err(LuaError::external(err_message))
+            wrap_err!("fs.find expected string or FindQuery, got: {:?}", other)
         }
     }
 }
@@ -349,20 +417,37 @@ fn fs_find(luau: &Lua, query: LuaValue) -> LuaValueResult {
 fn fs_create(luau: &Lua, new_options: LuaValue) -> LuaValueResult {
     match new_options {
         LuaValue::Table(options) => {
-            if let LuaValue::String(file_path) = options.get("file")? {
-                let writefile_options = TableBuilder::create(luau)?
-                    .with_value("file", file_path)?
-                    .with_value("content", "")?
-                    .build()?;
-                write_file(luau, LuaValue::Table(writefile_options))?;
-                Ok(LuaNil)
-            } else if let LuaValue::String(directory_path) = options.get("directory")? {
-                let directory_path = directory_path.to_str()?.to_string();
-                fs::create_dir(directory_path)?;
-                Ok(LuaNil)
-            } else {
-                wrap_err!("fs.create expected table fields 'file' or 'directory', got neither")
-            }
+            let entry_path = {
+                if let LuaValue::String(file_path) = options.get("file")? {
+                    let writefile_options = TableBuilder::create(luau)?
+                        .with_value("path", file_path.to_owned())?
+                        .with_value("content", "")?
+                        .build_readonly()?;
+                    fs_writefile(luau, LuaValue::Table(writefile_options))?;
+                    file_path.to_str()?.to_string()
+                    // Ok(LuaNil)
+                } else if let LuaValue::Table(file_options) = options.get("file")? {
+                   let file_name: LuaString = file_options.get("name")?;
+                   let file_content: LuaString = file_options.get("content")?;
+                   let writefile_options = TableBuilder::create(luau)?
+                        .with_value("path", file_name.to_owned())?
+                        .with_value("content", file_content)?
+                        .build_readonly()?;
+                    fs_writefile(luau, LuaValue::Table(writefile_options))?;
+                    file_name.to_str()?.to_string()
+                    // Ok(LuaNil)
+                } else if let LuaValue::String(directory_path) = options.get("directory")? {
+                    let dir_path = directory_path.to_string_lossy().to_string();
+                    fs::create_dir(&dir_path)?;
+                    dir_path
+                    // Ok(LuaNil)
+                } else if let LuaValue::Table(_tree) = options.get("directory")? {
+                    todo!()
+                } else {
+                    return wrap_err!("fs.create expected {{file: string}} or {{file: {{name: string, content: string}}}}, but got something else");
+                }
+            };
+            Ok(LuaValue::Table(create_entry_table(luau, &entry_path)?))
         },
         other => {
             wrap_err!("fs.create expected to be called with table of type {{ file: string }} or {{ directory: string }}, got {:?}", other)
@@ -372,12 +457,12 @@ fn fs_create(luau: &Lua, new_options: LuaValue) -> LuaValueResult {
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     let std_fs = TableBuilder::create(luau)?
-        .with_function("readfile", read_file)?
-        .with_function("writefile", write_file)?
+        .with_function("readfile", fs_readfile)?
+        .with_function("writefile", fs_writefile)?
+        .with_function("move", fs_move)?
         .with_function("remove", fs_remove)?
-        .with_function("exists", exists)?
-        .with_function("list", list_dir)?
-        .with_function("entries", get_entries)?
+        .with_function("list", fs_listdir)?
+        .with_function("entries", fs_entries)?
         .with_function("find", fs_find)?
         .with_function("create", fs_create)?
         .build_readonly()?;

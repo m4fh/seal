@@ -3,7 +3,7 @@ use std::fs;
 use mlua::prelude::*;
 use crate::{std_fs, table_helpers::TableBuilder};
 
-fn json_encode(_luau: &Lua, table: LuaValue) -> LuaResult<String> {
+pub fn json_encode(_luau: &Lua, table: LuaValue) -> LuaResult<String> {
     match table {
         LuaValue::Table(t) => {
             Ok(serde_json::to_string(&t).map_err(LuaError::external)?)
@@ -59,7 +59,7 @@ pub fn json_decode(luau: &Lua, json: String) -> LuaResult<LuaValue> {
 }
 
 fn json_readfile(luau: &Lua, file_path: String) -> LuaResult<LuaValue> {
-    let file_content = std_fs::read_file(luau, file_path)?;
+    let file_content = std_fs::fs_readfile(luau, file_path)?;
     Ok(json_decode(luau, file_content)?)
 }
 

@@ -34,8 +34,92 @@ pub fn net_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                 }
             }
         },
-        LuaValue::Table(_config) => {
-            panic!("meow")
+        LuaValue::Table(config) => {
+            let url: String = {
+                match config.get("url")? {
+                    LuaValue::String(url) => url.to_str()?.to_string(),
+                    LuaValue::Nil => {
+                        return wrap_err!("net.GetConfig missing field url")
+                    },
+                    other => {
+                        return wrap_err!("net.get GetConfig expected url to be a string, got: {:?}", other)
+                    }
+                }
+            };
+            // let mut get_builder = ureq::get(&url);
+            let mut get_builder = ureq::get(&url);
+
+            if let LuaValue::Table(headers_table) = config.get("headers")? {
+                for pair in headers_table.pairs::<String, String>() {
+                    let (key, value) = pair?;
+                    get_builder = get_builder.header(key, value);
+                }
+            } else {};
+
+            if let LuaValue::Table(headers_table) = config.get("params")? {
+                for pair in headers_table.pairs::<String, String>() {
+                    let (key, value) = pair?;
+                    get_builder = get_builder.query(key, value);
+                }
+            } else {};
+
+            let body: Option<String> = {
+                match config.get("body")? {
+                    LuaValue::String(body) => Some(body.to_str()?.to_string()),
+                    LuaValue::Table(body_table) => {
+                        get_builder = get_builder.header("Content-Type", "application/json");
+                        Some(std_json::json_encode(luau, LuaValue::Table(body_table))?)
+                    },
+                    LuaValue::Nil => None,
+                    other => {
+                        return wrap_err!("net.get GetOptions.body expected table (to serialize as json) or string, got: {:?}", other)
+                    }
+                }
+            };
+
+            let send_result = {
+                if let Some(body) = body {
+                    get_builder.force_send_body().send(body)
+                } else {
+                    get_builder.call()
+                }
+            };
+
+            match send_result {
+                Ok(mut result) => {
+                    let body = result.body_mut().read_to_string().unwrap_or(String::from(""));
+                    let json_decode_body = {
+                        let body_clone = body.clone();
+                        move |luau: &Lua, _: LuaMultiValue| {
+                            Ok(std_json::json_decode(luau, body_clone.to_owned())?)
+                        }
+                    };
+                    let result = TableBuilder::create(luau)?
+                        .with_value("ok", true)?
+                        .with_value("body", body)?
+                        .with_function("decode", json_decode_body.to_owned())?
+                        .with_function("unwrap", json_decode_body.to_owned())?
+                        .build_readonly()?;
+                    Ok(LuaValue::Table(result))
+                },
+                Err(err) => {
+                    let err_result = TableBuilder::create(luau)?
+                        .with_value("ok", false)?
+                        .with_value("err", err.to_string())?
+                        .with_function("unwrap", |_luau: &Lua, default: LuaValue| {
+                            match default {
+                                LuaValue::Nil => {
+                                    wrap_err!("net.get: attempted to unwrap an erred request without default argument")
+                                },
+                                other => {
+                                    Ok(other)
+                                }
+                            }
+                        })?
+                        .build_readonly()?;
+                    Ok(LuaValue::Table(err_result))
+                }
+            }
         }
         other => {
            wrap_err!("net.get expected url: string or GetOptions, got {:?}", other)
@@ -43,8 +127,97 @@ pub fn net_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
     }
 }
 
+pub fn net_post(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
+    match get_config {
+        LuaValue::Table(config) => {
+            let url: String = {
+                match config.get("url")? {
+                    LuaValue::String(url) => url.to_str()?.to_string(),
+                    LuaValue::Nil => {
+                        return wrap_err!("net.post: PostConfig missing url field")
+                    },
+                    other => {
+                        return wrap_err!("net.post: PostConfig expected url to be a string, got: {:?}", other)
+                    }
+                }
+            };
+            // let mut get_builder = ureq::get(&url);
+            let mut get_builder = ureq::post(&url);
+
+            if let LuaValue::Table(headers_table) = config.get("headers")? {
+                for pair in headers_table.pairs::<String, String>() {
+                    let (key, value) = pair?;
+                    get_builder = get_builder.header(key, value);
+                }
+            } else {};
+
+            if let LuaValue::Table(headers_table) = config.get("params")? {
+                for pair in headers_table.pairs::<String, String>() {
+                    let (key, value) = pair?;
+                    get_builder = get_builder.query(key, value);
+                }
+            } else {};
+
+            let body = {
+                match config.get("body")? {
+                    LuaValue::String(body) => body.to_str()?.to_string(),
+                    LuaValue::Table(body_table) => {
+                        get_builder = get_builder.header("Content-Type", "application/json");
+                        std_json::json_encode(luau, LuaValue::Table(body_table))?
+                    },
+                    other => {
+                        return wrap_err!("net.get GetOptions.body expected table (to serialize as json) or string, got: {:?}", other)
+                    }
+                }
+            };
+
+            let send_result = get_builder.send(body);
+
+            match send_result {
+                Ok(mut result) => {
+                    let body = result.body_mut().read_to_string().unwrap_or(String::from(""));
+                    let json_decode_body = {
+                        let body_clone = body.clone();
+                        move |luau: &Lua, _: LuaMultiValue| {
+                            Ok(std_json::json_decode(luau, body_clone.to_owned())?)
+                        }
+                    };
+                    let result = TableBuilder::create(luau)?
+                        .with_value("ok", true)?
+                        .with_value("body", body.clone())?
+                        .with_function("decode", json_decode_body.to_owned())?
+                        .with_function("unwrap", json_decode_body.to_owned())?
+                        .build_readonly()?;
+                    Ok(LuaValue::Table(result))
+                },
+                Err(err) => {
+                    let err_result = TableBuilder::create(luau)?
+                        .with_value("ok", false)?
+                        .with_value("err", err.to_string())?
+                        .with_function("unwrap", |_luau: &Lua, default: LuaValue| {
+                            match default {
+                                LuaValue::Nil => {
+                                    wrap_err!("net.get: attempted to unwrap an erred request without default argument")
+                                },
+                                other => {
+                                    Ok(other)
+                                }
+                            }
+                        })?
+                        .build_readonly()?;
+                    Ok(LuaValue::Table(err_result))
+                }
+            }
+        }
+        other => {
+           wrap_err!("net.post expected PostConfig, got {:?}", other)
+        }
+    }
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("get", net_get)?
+        .with_function("post", net_post)?
         .build_readonly()
 }

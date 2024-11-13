@@ -3,9 +3,12 @@
 		"@std": "./typedefs/std/"
 	},
 	"luau-lsp.fflags.override": {
-		"LuauSolverV2": "true"
+		"LuauSolverV2": "true",
+		"LuauTypeSolverRelease": "651",
+		"LuauNewSolverPopulateTableLocations": "true",
+		"LuauNewSolverPrePopulateClasses": "true"
 	},
-	"luau-lsp.require.mode": "relativeToFile",
+	"luau-lsp.completion.imports.suggestRequires": true,
 	"luau-lsp.types.definitionFiles": ["typedefs/globals.d.luau"],
 	"code-runner.executorMap": {
 		"luau": "cargo build; ./target/debug/smoluau ",

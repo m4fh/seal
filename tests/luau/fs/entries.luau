@@ -17,7 +17,7 @@ end
 local et = fs.find({directory = "./src"})
 print(et)
 
-local ninexists = fs.find{ directory = "hi" }
+local ninexists = fs.find { directory = "hi" }
 assert(ninexists == nil)
 
 assert(fs.find{file = "Cargo.toml"} ~= nil)

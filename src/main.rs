@@ -31,6 +31,7 @@ fn require(luau: &Lua, path: String) -> LuaValueResult {
             "@std/io/input" => Ok(table(std_io_input::create(luau)?)),
             "@std/io/output" => Ok(table(std_io_output::create(luau)?)),
             "@std/io/colors" => Ok(table(colors::create(luau)?)),
+            "@std/colors" => Ok(table(colors::create(luau)?)),
             "@std/time" => Ok(table(std_time::create(luau)?)),
             "@std/process" => Ok(table(std_process::create(luau)?)),
             "@std/net" => Ok(table(std_net::create(luau)?)),
@@ -104,10 +105,12 @@ fn main() -> LuaResult<()> {
         }
     };
 
-    luau.globals().set("require", luau.create_function(require)?)?;
-    luau.globals().set("p", luau.create_function(std_io_output::debug_print)?)?;
-    luau.globals().set("pp", luau.create_function(std_io_output::pretty_print_and_return)?)?;
-    luau.globals().set("print", luau.create_function(std_io_output::pretty_print)?)?;
+    let globals = luau.globals();
+
+    globals.set("require", luau.create_function(require)?)?;
+    globals.set("p", luau.create_function(std_io_output::debug_print)?)?;
+    globals.set("pp", luau.create_function(std_io_output::pretty_print_and_return)?)?;
+    globals.set("print", luau.create_function(std_io_output::pretty_print)?)?;
 
     let result = match luau.load(luau_code).exec() {
         Ok(()) => Ok(()),

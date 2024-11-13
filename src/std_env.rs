@@ -10,7 +10,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
 		"windows" => String::from("Windows"),
 		"android" => String::from("Android"),
 		"macos" => String::from("MacOS"),
-		_ => String::from("SomeOtherOS")
+		_ => String::from("Other")
 	};
 
 	let mut executable_path = String::from("");
