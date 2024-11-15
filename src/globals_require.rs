@@ -19,6 +19,7 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             "@std/process" => Ok(table(std_process::create(luau)?)),
             "@std/net" => Ok(table(std_net::create(luau)?)),
             "@std/json" => Ok(table(std_json::create(luau)?)),
+			"@std/thread" => Ok(table(std_thread::create(luau)?)),
             "@std/prettify" => Ok(function(luau.create_function(std_io_output::prettify_output)?)),
             other => {
                 wrap_err!("program required an unexpected standard library: {}", other)

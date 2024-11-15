@@ -14,6 +14,8 @@ mod std_io;
 mod std_io_colors;
 mod std_io_input;
 mod std_net;
+mod std_thread;
+
 mod globals_require;
 
 use crate::err_handling as errs;
