@@ -2,5 +2,14 @@
 
 local time = require("@std/time")
 
-time.wait(1)
+local reps = 0
+while true do
+	time.wait(0.25)
+	reps += 1
+	print("heh")
+	if reps > 5 then
+		break
+	end
+end
+
 print("done")
