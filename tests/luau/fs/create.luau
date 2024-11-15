@@ -2,7 +2,7 @@
 local fs = require("@std/fs")
 
 if fs.find("./tests/data/meow") then
-	fs.remove { directory = "./tests/data/meow" }
+	fs.remove({ directory = "./tests/data/meow" } :: any)
 end
 local dir = fs.create {
 	directory = "./tests/data/meow"

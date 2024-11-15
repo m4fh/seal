@@ -1,5 +1,4 @@
 use mlua::prelude::*;
-use std::fs::remove_dir_all;
 use std::{fs, io};
 use io::Write;
 
@@ -331,7 +330,7 @@ pub fn fs_remove(_luau: &Lua, remove_options: LuaValue) -> LuaValueResult {
                                 match options.get("remove_absolute_path")? {
                                     LuaValue::Boolean(safety_override) => {
                                         if safety_override {
-                                            remove_dir_all(&directory_path)?;
+                                            fs::remove_dir_all(&directory_path)?;
                                         } else {
                                             return wrap_err!("fs.remove: attempted to remove a directory by absolute path.\nThis could be a critical directory, so please be careful. Directory: {}. If you're absolutely sure your code cannot unintentionally destroy a critical directory like /, /root, /boot, or on windows, C:\\System32 or something, then feel free to set RemoveDirectoryOptions.remove_absolute_path to true.", &directory_path);
                                         }
