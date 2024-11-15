@@ -1,1 +1,4 @@
-local data = require("./some_data.luau") :: any
+local data = require("./some_data.luau")
+local d = pp(data)
+
+-- pp(script)

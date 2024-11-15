@@ -14,45 +14,12 @@ mod std_io;
 mod std_io_colors;
 mod std_io_input;
 mod std_net;
+mod globals_require;
 
 use crate::err_handling as errs;
 use crate::std_io_colors as colors;
 
 type LuaValueResult = LuaResult<LuaValue>;
-
-fn require(luau: &Lua, path: String) -> LuaValueResult {
-    let table = LuaValue::Table;
-    let function = LuaValue::Function;
-    if path.starts_with("@std") {
-        match path.as_str() {
-            "@std/fs" => Ok(table(std_fs::create(luau)?)),
-            "@std/env" => Ok(table(std_env::create(luau)?)),
-            "@std/io" => Ok(table(std_io::create(luau)?)),
-            "@std/io/input" => Ok(table(std_io_input::create(luau)?)),
-            "@std/io/output" => Ok(table(std_io_output::create(luau)?)),
-            "@std/io/colors" => Ok(table(colors::create(luau)?)),
-            "@std/colors" => Ok(table(colors::create(luau)?)),
-            "@std/time" => Ok(table(std_time::create(luau)?)),
-            "@std/process" => Ok(table(std_process::create(luau)?)),
-            "@std/net" => Ok(table(std_net::create(luau)?)),
-            "@std/json" => Ok(table(std_json::create(luau)?)),
-            "@std/prettify" => Ok(function(luau.create_function(std_io_output::prettify_output)?)),
-            other => {
-                wrap_err!("program required an unexpected standard library: {}", other)
-            }
-        }
-    } else if path.starts_with("@") {
-        todo!("require not impl yet")
-        // Err(LuaError::external("invalid require path or not impl yet"))
-    } else if path.starts_with("./") {
-        todo!("require not impl yet")
-    } else {
-        errs::wrap_with(
-            "Invalid require path: Luau requires must start with a require alias (ex. \"@alias/path.luau\") or relative path (ex. \"./path.luau\").", 
-            "\nNotes:\n  - ending a require with .luau is optional\n  - implicit relative paths (ex. require(\"file.luau\") without ./) are no longer allowed; see: https://github.com/luau-lang/rfcs/pull/56"
-        )
-    }
-}
 
 fn main() -> LuaResult<()> {
     let luau = Lua::new();
@@ -69,6 +36,8 @@ fn main() -> LuaResult<()> {
     if args.len() <= 1 {
         panic!("Bad usage: did you forget to pass me a file?")
     }
+
+    let globals = luau.globals();
     
     let luau_code: String =  'gotcoded: {
         let first_arg = args[1].clone();
@@ -83,6 +52,13 @@ fn main() -> LuaResult<()> {
         };
 
         let file_path = first_arg;
+
+        let script = table_helpers::TableBuilder::create(&luau)?
+            .with_value("entry_path", file_path.to_owned())?
+            .with_value("current_path", file_path.to_owned())?
+            .with_value("required_files", luau.create_table()?)?
+            .build()?;
+        globals.set("script", script)?;
  
         if file_path.ends_with(".lua") {
             panic!("wrong language!! this runtime is meant for the Luau language, if you want to run .lua files, pick another runtime please.");
@@ -105,9 +81,10 @@ fn main() -> LuaResult<()> {
         }
     };
 
-    let globals = luau.globals();
+    let script: LuaTable = globals.get("script")?;
+    script.set("src", luau_code.to_owned())?;
 
-    globals.set("require", luau.create_function(require)?)?;
+    globals.set("require", luau.create_function(globals_require::require)?)?;
     globals.set("p", luau.create_function(std_io_output::debug_print)?)?;
     globals.set("pp", luau.create_function(std_io_output::pretty_print_and_return)?)?;
     globals.set("print", luau.create_function(std_io_output::pretty_print)?)?;
