@@ -11,7 +11,11 @@ use regex::Regex;
 use crate::{table_helpers::TableBuilder, LuaValueResult, colors, globals_require};
 use mlua::prelude::*;
 
-fn spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
+fn thread_sleep(luau: &Lua, duration: LuaNumber) -> LuaValueResult {
+	Ok(LuaNil)
+}
+
+fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 	match spawn_options {
 		LuaValue::Table(options) => {
 			let mut thread_src_path = String::from("");
@@ -104,6 +108,6 @@ fn spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
 	TableBuilder::create(luau)?
-		.with_function("spawn", spawn)?
+		.with_function("spawn", thread_spawn)?
 		.build_readonly()
 }

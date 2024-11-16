@@ -16,6 +16,7 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             "@std/io/colors" => Ok(table(colors::create(luau)?)),
             "@std/colors" => Ok(table(colors::create(luau)?)),
             "@std/time" => Ok(table(std_time::create(luau)?)),
+			"@std/time/datetime" => Ok(table(std_time::create_datetime(luau)?)),
             "@std/process" => Ok(table(std_process::create(luau)?)),
             "@std/net" => Ok(table(std_net::create(luau)?)),
             "@std/json" => Ok(table(std_json::create(luau)?)),

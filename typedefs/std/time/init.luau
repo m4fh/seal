@@ -5,6 +5,8 @@ function time.wait(seconds: number): ()
 	return nil :: any
 end
 
+time.datetime = require("./datetime")
+
 type time = typeof(time)
 
 return time

@@ -11,6 +11,6 @@
 	"luau-lsp.completion.imports.suggestRequires": true,
 	"luau-lsp.types.definitionFiles": ["typedefs/globals.d.luau"],
 	"code-runner.executorMap": {
-		"luau": "cargo build; ./target/debug/smoluau ",
+		"luau": "cargo build && ./target/debug/smoluau ",
 	}
 }
