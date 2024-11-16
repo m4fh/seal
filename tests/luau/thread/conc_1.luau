@@ -7,7 +7,7 @@ while true do
 	time.wait(0.25)
 	reps += 1
 	print("heh")
-	if reps > 5 then
+	if reps > 45 then
 		break
 	end
 end

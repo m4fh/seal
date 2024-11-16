@@ -50,7 +50,6 @@ fn spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 			});
 			// no clue why this works, got it off copilot but yay fearful concurrency :p 
 			let arc_handle = Arc::new(Mutex::new(Some(handle)));
-			// handle.join().unwrap();
 			Ok(LuaValue::Table(
 				TableBuilder::create(luau)?
 					.with_function("join", move |_luau: &Lua, _value: LuaValue|{

@@ -21,7 +21,6 @@ fn fs_listdir(luau: &Lua, path: String) -> LuaResult<LuaTable> {
             } else {
                 Err(LuaError::runtime("Attempt to list files/entries on path, but path is a file itself"))
             }
-            
         },
         Err(err) => {
             let err_message = match err.kind() {
@@ -46,23 +45,20 @@ fn fs_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
                         let entry_table = luau.create_table()?;
                         let entry_metadata = entry.metadata().unwrap();
                         if entry_metadata.is_dir() {
-                            if entry_metadata.is_dir() {
-                                entry_table.set("type", "Directory")?;
-                                entry_table.set("path", entry_path)?;
-                                entry_table.set("entries", luau.create_function({
-                                    let entry_path = entry_path.to_string();
-                                    move | luau, _s: LuaMultiValue | {
-                                        fs_entries(luau, entry_path.clone())
-                                    }})?)?;
-                                entry_table.set("list", luau.create_function({
-                                    let entry_path = entry_path.to_string();
-                                    move | luau, _s: LuaMultiValue | {
-                                        fs_listdir(luau, entry_path.clone())
-                                    }
-                                })?)?;
-                            }
+                            entry_table.set("type", "Directory")?;
+                            entry_table.set("path", entry_path)?;
+                            entry_table.set("entries", luau.create_function({
+                                let entry_path = entry_path.to_string();
+                                move | luau, _s: LuaMultiValue | {
+                                    fs_entries(luau, entry_path.clone())
+                                }})?)?;
+                            entry_table.set("list", luau.create_function({
+                                let entry_path = entry_path.to_string();
+                                move | luau, _s: LuaMultiValue | {
+                                    fs_listdir(luau, entry_path.clone())
+                                }
+                            })?)?;
                         } else {
-
                             let extension = {
                                 if let Some(captures) = grab_file_ext_re.captures(entry_path) {
                                     String::from(&captures[1])
@@ -70,7 +66,6 @@ fn fs_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
                                     String::from("")
                                 }
                             };
-
                             entry_table.set("type", "File")?;
                             entry_table.set("path", entry_path)?;
                             entry_table.set("extension", extension)?;
@@ -87,10 +82,9 @@ fn fs_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
                 };
                 Ok(entries_dictionary)
             } else {
-                wrap_err!("Attempt to list files/entries of a path, but path is a file itself!")
+                wrap_err!("fs.entries: Attempt to list files/entries of a path, but path is a file itself!")
                 // Err(LuaError::external("Attempt to list files/entries of path, but path is a file itself"))
             }
-            
         },
         Err(err) => {
             let err_message = match err.kind() {
@@ -280,7 +274,6 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
     Ok(entry_table)
 }
 
-
 pub fn fs_move(_luau: &Lua, from_to: LuaMultiValue) -> LuaValueResult {
     let mut multivalue = from_to.clone();
     let from = multivalue.pop_front().unwrap_or(LuaNil);
@@ -355,12 +348,10 @@ pub fn fs_remove(_luau: &Lua, remove_options: LuaValue) -> LuaValueResult {
                         return wrap_err!("fs.remove expected RemoveDirectoryOptions.force to be string? (string or the default, nil), got: {:?}", other);
                     }
                 }
-
                 Ok(LuaNil)
             } else {
                 errs::wrap("fs.remove received invalid arguments; expected RemoveOptions.file or RemoveOptions.directory.")
             }
-            
         },
         other => {
             wrap_err!("fs.remove expected RemoveOptions, got: {}", other.to_string()?)

@@ -1,5 +1,6 @@
 use mlua::prelude::*;
 use std::{fs, env, process, panic};
+use regex::Regex;
 
 mod table_helpers;
 mod std_io_output;
@@ -94,8 +95,11 @@ fn main() -> LuaResult<()> {
     let result = match luau.load(luau_code).exec() {
         Ok(()) => Ok(()),
         Err(err) => {
-            eprintln!("{err}");
-            process::exit(1);
+            let replace_main_re = Regex::new(r#"\[string \"[^\"]+\"\]"#).unwrap();
+            let script: LuaTable = globals.get("script")?;
+            let current_path: String = script.get("current_path")?;
+            let err_message = replace_main_re.replace(&err.to_string(), format!("[\"{}\"]", current_path)).to_string();
+            panic!("{}", err_message);
         }
     };
 
