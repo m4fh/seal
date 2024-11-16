@@ -1,5 +1,5 @@
 use mlua::prelude::*;
-use std::{fs, env, process, panic};
+use std::{fs, env, panic};
 use regex::Regex;
 
 mod table_helpers;
@@ -87,10 +87,7 @@ fn main() -> LuaResult<()> {
     let script: LuaTable = globals.get("script")?;
     script.set("src", luau_code.to_owned())?;
 
-    globals.set("require", luau.create_function(globals_require::require)?)?;
-    globals.set("p", luau.create_function(std_io_output::debug_print)?)?;
-    globals.set("pp", luau.create_function(std_io_output::pretty_print_and_return)?)?;
-    globals.set("print", luau.create_function(std_io_output::pretty_print)?)?;
+    globals_require::set_globals(&luau)?;
 
     let result = match luau.load(luau_code).exec() {
         Ok(()) => Ok(()),
@@ -98,7 +95,19 @@ fn main() -> LuaResult<()> {
             let replace_main_re = Regex::new(r#"\[string \"[^\"]+\"\]"#).unwrap();
             let script: LuaTable = globals.get("script")?;
             let current_path: String = script.get("current_path")?;
-            let err_message = replace_main_re.replace(&err.to_string(), format!("[\"{}\"]", current_path)).to_string();
+            let err_context: Option<String> = script.get("context")?;
+            let err_message = {
+                let err_message = replace_main_re
+                    .replace_all(&err.to_string(), format!("[\"{}\"]", current_path))
+                    .replace("_G.error", "error")
+                    .to_string();
+                if let Some(context) = err_context {
+                    let context = format!("{}[CONTEXT] {}{}{}\n", colors::BOLD_RED, context, colors::RESET, colors::RED);
+                    context + &err_message
+                } else {
+                    err_message
+                }
+            };
             panic!("{}", err_message);
         }
     };

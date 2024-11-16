@@ -24,10 +24,10 @@ pub fn wrap_expected_got<T: Display>(message: &str, expected: &str, got: T) -> L
 #[macro_export]
 macro_rules! wrap_err {
     ($msg:expr) => {
-        Err(LuaError::external(format!("{}[ERR]\n{}{}", colors::RED, $msg, colors::RESET)))
+        Err(LuaError::external(format!("{}{}{}", colors::RED, $msg, colors::RESET)))
     };
     ($msg:expr, $($arg:tt)*) => {
-        Err(LuaError::external(format!("{}[ERR]\n{}{}", colors::RED, format!($msg, $($arg)*), colors::RESET)))
+        Err(LuaError::external(format!("{}{}{}", colors::RED, format!($msg, $($arg)*), colors::RESET)))
     };
 }
 

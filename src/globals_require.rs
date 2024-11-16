@@ -72,3 +72,18 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
         )
     }
 }
+
+pub fn error(_luau: &Lua, error_value: LuaValue) -> LuaValueResult {
+	wrap_err!("message: {:?}", error_value.to_string()?)
+}
+
+pub fn set_globals(luau: &Lua) -> LuaResult<LuaValue> {
+	let globals = luau.globals();
+	globals.set("require", luau.create_function(require)?)?;
+	globals.set("error", luau.create_function(error)?)?;	
+    globals.set("p", luau.create_function(std_io_output::debug_print)?)?;
+    globals.set("pp", luau.create_function(std_io_output::pretty_print_and_return)?)?;
+    globals.set("print", luau.create_function(std_io_output::pretty_print)?)?;
+
+	Ok(LuaNil)
+}

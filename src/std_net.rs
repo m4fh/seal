@@ -220,9 +220,9 @@ pub fn net_post(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
     }
 }
 
-fn net_request(luau: &Lua, request_options: LuaValue) -> LuaValueResult {
+fn net_request(_luau: &Lua, request_options: LuaValue) -> LuaValueResult {
     match request_options {
-        LuaValue::Table(options) => {
+        LuaValue::Table(_options) => {
             todo!()
         },
         other => {
@@ -235,5 +235,6 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("get", net_get)?
         .with_function("post", net_post)?
+        .with_function("request", net_request)?
         .build_readonly()
 }
