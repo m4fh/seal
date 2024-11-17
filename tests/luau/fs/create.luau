@@ -5,7 +5,7 @@ if fs.find("./tests/data/meow") then
 	fs.remove({ directory = "./tests/data/meow" } :: any)
 end
 local dir = fs.create {
-	directory = "./tests/data/meow"
+	directory = "./tests/data/ignore/meow"
 } :: fs.DirectoryEntry
 
 for i = 1, 10 do
@@ -28,7 +28,7 @@ for path, entry in dir:entries() do
 	if n and n % 2 == 0 then
 		-- print(path)
 		-- print(path, dir.path)
-		local d = fs.find { directory = "./tests/data/meow/inside" }
+		local d = fs.find { directory = "./tests/data/ignore/meow/inside" }
 		if d then
 			fs.move(path, `{d.path}/meow{n}.log`)
 		end
