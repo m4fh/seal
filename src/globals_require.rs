@@ -84,7 +84,7 @@ fn globals_try(luau: &Lua, f: LuaValue) -> LuaValueResult {
 			let pcall: LuaFunction = luau.globals().get("pcall")?;
 			let mut result  = pcall.call::<LuaMultiValue>(f)?;
 			let success = result.pop_front().unwrap();
-			let result = result.pop_front().unwrap();
+			let result = result.pop_front().unwrap_or(LuaNil);
 
 			let result_table = luau.create_table()?;
 
@@ -92,13 +92,102 @@ fn globals_try(luau: &Lua, f: LuaValue) -> LuaValueResult {
 				if success == true {
 					result_table.set("ok", true)?;
 					result_table.set("result", result)?;
+					result_table.set("match", luau.create_function(
+						|_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+							let self_table = match multivalue.pop_front().unwrap() {
+								LuaValue::Table(self_table) => self_table,
+								other => {
+									return wrap_err!("TryResult:match() expected self to be a TryResult, got: {:?}", other);
+								}
+							};
+							let handler = multivalue.pop_back().unwrap();
+							match handler {
+								LuaValue::Table(handler) => {
+									let ok_result: LuaValue = self_table.get("result")?;
+									let ok_handler: LuaValue = handler.get("ok")?;
+									if let LuaValue::Function(ok_handler) = ok_handler {
+										Ok(ok_handler.call::<LuaValue>(ok_result)?)
+									} else {
+										Ok(ok_handler)
+									}
+								},
+								other => {
+									wrap_err!("TryResult:match() expected handler to be a table with field 'ok', got {:?}", other)
+								}
+							}
+						}
+					)?)?;
+					result_table.set("unwrap", luau.create_function(
+						|_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+							match multivalue.pop_front() {
+								Some(LuaValue::Table(self_table)) => {
+									let result = self_table.get("result")?;
+									Ok(result)
+								},
+								None => {
+									wrap_err!("TryResult:unwrap() was called with zero arguments (not even self)")
+								},
+								other => {
+									wrap_err!("TryResult:unwrap() wtf is self?: {:?}", other)
+								}
+							}
+						}
+					)?)?;
 				} else {
 					result_table.set("ok", false)?;
-					result_table.set("err", result)?;
+					result_table.set("err", result.clone())?;
+					result_table.set("match", luau.create_function(
+						|_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+							let self_table = match multivalue.pop_front().unwrap() {
+								LuaValue::Table(self_table) => self_table,
+								other => {
+									return wrap_err!("TryResult:match() expected self to be self, got: {:?}", other);
+								}
+							};
+							let handler = multivalue.pop_back().unwrap();
+							match handler {
+								LuaValue::Table(handler) => {
+									let err_result: LuaValue = self_table.get("err")?;
+									let err_handler: LuaValue = handler.get("err")?;
+									if let LuaValue::Function(ok_handler) = err_handler {
+										Ok(ok_handler.call::<LuaValue>(err_result)?)
+									} else {
+										Ok(err_handler)
+									}
+								},
+								other => {
+									wrap_err!("TryResult:match() expected handler to be a table with field 'err', got {:?}", other)
+								}
+							}
+						}
+					)?)?;
+					result_table.set("unwrap", luau.create_function(
+						|_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+							match multivalue.pop_front() {
+								Some(LuaValue::Table(self_table)) => {
+									let err_result: LuaError = self_table.get("err")?;
+									match multivalue.pop_front() {
+										Some(default_value) => {
+											Ok(default_value)
+										},
+										None => {
+											wrap_err!("Attempted to :unwrap() a TryResult without a default value! Error: {}", err_result.to_string())
+										}
+									}
+								},
+								None => {
+									wrap_err!("TryResult:unwrap() was called with zero arguments (not even self)")
+								},
+								other => {
+									wrap_err!("TryResult:unwrap() wtf is self?: {:?}", other)
+								}
+							}
+						}
+					)?)?;
 				}
 			} else {
 				unreachable!("wtf else is success other than boolean??? {:?}", success);
-			}
+			};
 
 			Ok(LuaValue::Table(result_table))
 		},
@@ -115,6 +204,7 @@ pub fn set_globals(luau: &Lua) -> LuaResult<LuaValue> {
     globals.set("p", luau.create_function(std_io_output::debug_print)?)?;
     globals.set("pp", luau.create_function(std_io_output::pretty_print_and_return)?)?;
     globals.set("print", luau.create_function(std_io_output::pretty_print)?)?;
+	globals.set("try", luau.create_function(globals_try)?)?;
 
 	Ok(LuaNil)
 }
