@@ -3,7 +3,7 @@
 
 use std::future::Future;
 
-use mlua::{prelude::*, MaybeSend};
+use mlua::prelude::*;
 
 /**
     Utility struct for building Lua tables.
@@ -92,7 +92,7 @@ impl<'lua> TableBuilder<'lua> {
         K: IntoLua,
         A: FromLuaMulti,
         R: IntoLuaMulti,
-        F: Fn(&Lua, A) -> LuaResult<R> + MaybeSend + 'static,
+        F: Fn(&Lua, A) -> LuaResult<R> + 'static, //+ MaybeSend + 'static,
     {
         let f = self.luau.create_function(func)?;
         self.with_value(key, LuaValue::Function(f))
@@ -103,17 +103,17 @@ impl<'lua> TableBuilder<'lua> {
 
         This will overwrite any value that already exists.
     */
-    pub fn with_async_function<K, A, R, F, FR>(self, key: K, func: F) -> LuaResult<Self>
-    where
-        K: IntoLua,
-        A: FromLuaMulti,
-        R: IntoLuaMulti,
-        F: Fn(Lua, A) -> FR + MaybeSend + 'static,
-        FR: Future<Output = LuaResult<R>> + 'static,
-    {
-        let f = self.luau.create_async_function(func)?;
-        self.with_value(key, LuaValue::Function(f))
-    }
+//    pub fn with_async_function<K, A, R, F, FR>(self, key: K, func: F) -> LuaResult<Self>
+//    where
+//        K: IntoLua,
+//        A: FromLuaMulti,
+//        R: IntoLuaMulti,
+//        F: Fn(Lua, A) -> FR + MaybeSend + 'static,
+//        FR: Future<Output = LuaResult<R>> + 'static,
+//   {
+//        let f = self.luau.create_async_function(func)?;
+//       self.with_value(key, LuaValue::Function(f))
+//    }
 
     /**
         Adds a metatable to the table.
