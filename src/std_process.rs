@@ -1,9 +1,9 @@
 use std::process::{self, Command};
 
 use mlua::prelude::*;
-use crate::table_helpers::TableBuilder;
+use crate::{colors, table_helpers::TableBuilder, wrap_err, LuaValueResult};
 
-fn run_program(luau: &Lua, run_options: LuaValue) -> LuaResult<LuaTable> {
+fn run_program(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
 	match run_options {
 		LuaValue::Table(run_options) => {
 			match run_options.get("program")? {
@@ -25,7 +25,7 @@ fn run_program(luau: &Lua, run_options: LuaValue) -> LuaResult<LuaTable> {
 								Vec::new()
 							},
 							_ => {
-								panic!("expected SpawnOptions args to be {{string}} or nil, got {:?}", luau_args);
+								return wrap_err!("expected SpawnOptions args to be {{string}} or nil, got {:?}", luau_args);
 							}
 						}
 					};
@@ -36,7 +36,7 @@ fn run_program(luau: &Lua, run_options: LuaValue) -> LuaResult<LuaTable> {
 								let rust_shell_str = shell.to_str().unwrap().to_string();
 								Command::new(rust_shell_str.clone())
 									.arg(
-										if rust_shell_str.as_str() == "powershell" {
+										if rust_shell_str.as_str() == "pwsh" || rust_shell_str.as_str() == "powershell" {
 											"-Command"
 										} else {
 											"-c"
@@ -54,7 +54,7 @@ fn run_program(luau: &Lua, run_options: LuaValue) -> LuaResult<LuaTable> {
 									.expect("failed to execute process")
 							},
 							other => {
-								panic!("expected RunOptions.shell to be either a string or nil, got {:?}", other)
+								return wrap_err!("expected RunOptions.shell to be either a string or nil, got {:?}", other);
 							}
 						}
 						
@@ -62,26 +62,66 @@ fn run_program(luau: &Lua, run_options: LuaValue) -> LuaResult<LuaTable> {
 
 					let stderr = String::from_utf8_lossy(&output.stderr);
 					let stdout = String::from_utf8_lossy(&output.stdout);
+
 					result_table.set("stdout", stdout.clone())?;
 					result_table.set("stderr", stderr.clone())?;
 					if output.status.success() {
 						result_table.set("ok", true)?;
 						result_table.set("out", stdout)?;
+						result_table.set("unwrap", luau.create_function(
+							|_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+								let spawn_result_self = match multivalue.pop_front() {
+									Some(LuaValue::Table(_self)) => _self,
+									Some(LuaValue::Nil) => {
+										return wrap_err!("ProcessRunResult:unwrap() expected self to be self, got nil");
+									},
+									Some(other) => {
+										return wrap_err!("ProcessRunResult:unwrap() expected self to be self, got {:?}", other);
+									}
+									None => {
+										return wrap_err!("ProcessRunResult:unwrap() expected self, got nothing. Did you forget a colon (:) (method syntax)?");
+									}
+								};
+								let stdout: LuaValue = spawn_result_self.raw_get("stdout")?;
+								Ok(stdout)
+							})?
+						)?;
 					} else {
 						result_table.set("ok", false)?;
 						result_table.set("err", stderr)?;
+						result_table.set("unwrap", luau.create_function(
+							|_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+								let _self = match multivalue.pop_front() {
+									Some(LuaValue::Table(_self)) => _self,
+									Some(LuaValue::Nil) => {
+										return wrap_err!("ProcessRunResult:unwrap() expected self to be self, got nil");
+									},
+									Some(other) => {
+										return wrap_err!("ProcessRunResult:unwrap() expected self to be self, got {:?}", other);
+									}
+									None => {
+										return wrap_err!("ProcessRunResult:unwrap() expected self, got nothing. Did you forget a colon (:) (method syntax)?");
+									}
+								};
+								match multivalue.pop_front() {
+									Some(value) => Ok(value),
+									None => {
+										wrap_err!("Attempt to :unwrap() an erred process.spawn without a default value!")
+									}
+								}
+							})?
+						)?;
 					}
 
-					Ok(result_table)
+					Ok(LuaValue::Table(result_table))
 				}, 
-				_ => {
-					Err(LuaError::external("process.spawn expected table with field `program`, got nil"))
+				other => {
+					wrap_err!("process.spawn expected table with field `program`, got: {:?}", other)
 				}
 			}
 		},
 		_ => {
-			let err_message = format!("process.spawn expected table of SpawnOptions ({{ program: string, args: {{ string }}?, etc. }}), got: {:?}", run_options);
-			Err(LuaError::external(err_message))
+			wrap_err!("process.spawn expected table of SpawnOptions ({{ program: string, args: {{ string }}?, etc. }}), got: {:?}", run_options)
 		}
 	}
 	
@@ -124,7 +164,7 @@ fn exit(luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
         match exit_code {
             LuaValue::Integer(i) => i as i32,
             _ => {
-                panic!("process.exit expected exit_code to be a number (integer) or nil, got {:?}", exit_code);
+                return wrap_err!("process.exit expected exit_code to be a number (integer) or nil, got {:?}", exit_code);
             }
         }
     } else {
@@ -136,11 +176,9 @@ fn exit(luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
 		LuaValue::Function(f) => {
 			f.call::<i32>(exit_code)?;
 		},
-		LuaValue::Nil => {
-			
-		},
-		_ => {
-			unreachable!("wtf is in _process_exit_callback_function other than a function or nil?")
+		LuaValue::Nil => {},
+		other => {
+			unreachable!("wtf is in _process_exit_callback_function other than a function or nil?: {:?}", other)
 		}
 	}
     process::exit(exit_code);

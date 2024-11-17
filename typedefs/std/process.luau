@@ -1,5 +1,5 @@
 --!strict
-type RunResult = {
+type RunResult = ({
 	ok: true,
 	out: string,
 	stdout: string,
@@ -9,6 +9,8 @@ type RunResult = {
 	err: string,
 	stdout: string,
 	stderr: string,
+}) & {
+	unwrap: (self: RunResult, default: any?) -> string?
 }
 
 type RunOptions = {

@@ -84,7 +84,7 @@ local res = process.run {
 	program = `{env.executable_path} ./print_args.luau who am i`,
 	shell = if env.os == "Windows" then "pwsh" else "sh"
 }
-print(`args from spawned program: {if res.ok then res.out else nil}`)
+print(`args from spawned program: {res:unwrap()}`)
 
 -- use the env lib to get cli args and learn cool stuff about the hosting process
 local script_path = env.script_path
