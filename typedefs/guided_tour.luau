@@ -4,17 +4,17 @@
 -- hi!! welcome to sealey runtime ᶘ ᵔᴥᵔᶅ, here's some basics to get you set up 
 
 -- there are > 1 ways to print things 
--- all prints will print tables properly rendered/expanded/formatted
+-- all prints will pretty print tables properly rendered/expanded/formatted
 print({
 	my = { table = 1 }
-}) -- prints in color
-local string_says_hi = pp("hi") -- print, but it returns
+}) -- pretty prints in format, color, etc.
+local string_says_hi = pp("hi") -- pretty print, but it returns
 local debuggy = p("hi") -- debug print that prints the runtime/Rust mlua types; for example, this prints `String("hi")`
 -- the latter two are also available in @std/io/output if you manage to shadow them for some reason
 
 -- firstclass support for colorful
-local colors = require("@std/colors") -- also as "@std/io/colors"
-local sealey = pp(`{colors.cyan("ᶘ" )}{colors.blue("ᵔ")}{colors.red("ᴥ")}{colors.blue("ᵔ")}{colors.cyan("ᶅ")}`)
+local colors = require("@std/colors") -- also known as "@std/io/colors"
+local sealey = pp(`{colors.bold.cyan("ᶘ" )}{colors.blue("ᵔ")}{colors.red("ᴥ")}{colors.blue("ᵔ")}{colors.bold.cyan("ᶅ")}`)
 
 -- standard libs are in @std/libname and can be required as so:
 local fs = require("@std/fs")
@@ -89,10 +89,12 @@ print(`args from spawned program: {if res.ok then res.out else nil}`)
 -- use the env lib to get cli args and learn cool stuff about the hosting process
 local script_path = env.script_path
 local current_executable --[[wheres my seal??]] = env.executable_path
-print(`You are currently running {env.os}`)
+print(`You are currently running {colors.bold.white(env.os)}`)
 
 fs.remove { file = "./print_args.luau" }
-assert(fs.find({ file = "./print_args.luau" }) == nil)
+assert(
+	fs.find({ file = "./print_args.luau" }) == nil, "fs.remove failed to remove print_args.luau?"
+)
 
 -- many stdlib apis return a `Result` table that contains fields `ok`, some sort of output or result, and a function to :unwrap(which takes a default value):
 local net = require("@std/net")
@@ -101,10 +103,40 @@ type RandomDog = {
 	success: boolean,
 }
 local dog_result: RandomDog = net.get({ 
-	url = "https://dog.ceo/api/breeds/image/random"}
-):unwrap({
+	url = "https://dog.ceo/api/breeds/image/random"
+}):unwrap({
 	message = "dog not found",
-	success = "false"
+	success = "false",
 })
 
-print(dog_result)
+local output = require("@std/io/output")
+
+print(`Your dog of the day is: {output.format(dog_result)}`)
+
+-- pcall might be out-of-fashion for our modern seals. 
+-- to match our other Result-like apis, we provide a handy `try` alternative:
+local random_number = try(
+	function()
+		local randy = math.random(1, 10)
+		return if randy ~= 8 then randy else error("hit the eight")
+	end
+):match({
+	ok = function(result: number)
+		return result + 2
+	end,
+	err = function(err)
+		print(`oops: {tostring(err)}`)
+		return 7
+	end
+}) :: number
+
+-- it also supports :unwrap(with default?)
+local thing_that_breaks_sometimes = try(
+	function()
+		return net.get {
+			url = "https://some_spooky_endpoint.net/get",
+		}:unwrap()
+	end
+):unwrap({
+	status = "yeah ofc it broke"
+})

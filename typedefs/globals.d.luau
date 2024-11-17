@@ -17,10 +17,11 @@ declare script: {
 	src: string,
 }
 
-type TryParams = {
-	try: (any?) -> any?,
-	ok: (result: any?) -> any?,
-	err: (err: any) -> any?,
+declare function try(f: () -> any): {
+	ok: boolean,
+	match: (self: any, matcher: {
+		ok: (result: any?) -> any?,
+		err: (err: any?) -> any?,
+	}) -> any?,
+	unwrap: (self: any, default: any?) -> any,
 }
-
-declare function matcherr(params: TryParams): any

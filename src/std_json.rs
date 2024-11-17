@@ -52,7 +52,7 @@ pub fn json_decode(luau: &Lua, json: String) -> LuaResult<LuaValue> {
     let json_result: serde_json::Value = match serde_json::from_str(&json) {
         Ok(json) => json,
         Err(err) => {
-            return wrap_err!("json: unable to decode json: {}", err.to_string());
+            return wrap_err!("json: unable to decode json. serde_json error: {}", err.to_string());
         }
     };
     let luau_result = LuaTable::from_lua(luau.to_value(&json_result)?, luau)?;

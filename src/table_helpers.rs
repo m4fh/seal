@@ -1,8 +1,6 @@
 #![allow(clippy::missing_errors_doc)]
 #![allow(dead_code)]
 
-use std::future::Future;
-
 use mlua::prelude::*;
 
 /**
