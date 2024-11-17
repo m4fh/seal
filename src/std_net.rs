@@ -93,8 +93,8 @@ pub fn net_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                         move |luau: &Lua, _: LuaMultiValue| {
                             match std_json::json_decode(luau, body_clone.to_owned()) {
                                 Ok(response) => Ok(response),
-                                Err(_err) => {
-                                    wrap_err!("NetResponse:decode() unable to decode response.body to json")
+                                Err(err) => {
+                                    wrap_err!("NetResponse:decode() unable to decode response.body to json: {}", err)
                                 }
                             }
                         }

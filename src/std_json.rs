@@ -49,7 +49,7 @@ fn parse_fix_numbers_rec(luau: &Lua, t: LuaTable) -> LuaResult<LuaValue> {
 }
 
 pub fn json_decode(luau: &Lua, json: String) -> LuaResult<LuaValue> {
-    let json_result = match serde_json::from_str(&json) {
+    let json_result: serde_json::Value = match serde_json::from_str(&json) {
         Ok(json) => json,
         Err(err) => {
             return wrap_err!("json: unable to decode json: {}", err.to_string());
