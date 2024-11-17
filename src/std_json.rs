@@ -1,7 +1,7 @@
 use std::fs;
 
 use mlua::prelude::*;
-use crate::{std_fs, table_helpers::TableBuilder};
+use crate::{std_fs, table_helpers::TableBuilder, wrap_err, colors};
 
 pub fn json_encode(_luau: &Lua, table: LuaValue) -> LuaResult<String> {
     match table {
@@ -49,7 +49,12 @@ fn parse_fix_numbers_rec(luau: &Lua, t: LuaTable) -> LuaResult<LuaValue> {
 }
 
 pub fn json_decode(luau: &Lua, json: String) -> LuaResult<LuaValue> {
-    let json_result: serde_json::Value = serde_json::from_str(&json).map_err(LuaError::external)?;
+    let json_result = match serde_json::from_str(&json) {
+        Ok(json) => json,
+        Err(err) => {
+            return wrap_err!("json: unable to decode json: {}", err.to_string());
+        }
+    };
     let luau_result = LuaTable::from_lua(luau.to_value(&json_result)?, luau)?;
     // unfortunately there seems to be a serde issue between mlua and serde_json that causes numbers to be incorrectly
     // decoded to { ["$serde_json::private::Number"] = "23" } or smth so we have to go thru and recursively fix all numbers manually

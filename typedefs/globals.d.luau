@@ -16,3 +16,11 @@ declare script: {
 	},
 	src: string,
 }
+
+type TryParams = {
+	try: (any?) -> any?,
+	ok: (result: any?) -> any?,
+	err: (err: any) -> any?,
+}
+
+declare function matcherr(params: TryParams): any

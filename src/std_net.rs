@@ -91,7 +91,12 @@ pub fn net_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                     let json_decode_body = {
                         let body_clone = body.clone();
                         move |luau: &Lua, _: LuaMultiValue| {
-                            Ok(std_json::json_decode(luau, body_clone.to_owned())?)
+                            match std_json::json_decode(luau, body_clone.to_owned()) {
+                                Ok(response) => Ok(response),
+                                Err(_err) => {
+                                    wrap_err!("NetResponse:decode() unable to decode response.body to json")
+                                }
+                            }
                         }
                     };
                     let result = TableBuilder::create(luau)?

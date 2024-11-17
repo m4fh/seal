@@ -78,6 +78,36 @@ pub fn error(_luau: &Lua, error_value: LuaValue) -> LuaValueResult {
 	wrap_err!("message: {:?}", error_value.to_string()?)
 }
 
+fn globals_try(luau: &Lua, f: LuaValue) -> LuaValueResult {
+	match f {
+		LuaValue::Function(f) => {
+			let pcall: LuaFunction = luau.globals().get("pcall")?;
+			let mut result  = pcall.call::<LuaMultiValue>(f)?;
+			let success = result.pop_front().unwrap();
+			let result = result.pop_front().unwrap();
+
+			let result_table = luau.create_table()?;
+
+			if let LuaValue::Boolean(success) = success {
+				if success == true {
+					result_table.set("ok", true)?;
+					result_table.set("result", result)?;
+				} else {
+					result_table.set("ok", false)?;
+					result_table.set("err", result)?;
+				}
+			} else {
+				unreachable!("wtf else is success other than boolean??? {:?}", success);
+			}
+
+			Ok(LuaValue::Table(result_table))
+		},
+		other => {
+			wrap_err!("try expected a function, got {:?}", other)
+		}
+	}
+}
+
 pub fn set_globals(luau: &Lua) -> LuaResult<LuaValue> {
 	let globals = luau.globals();
 	globals.set("require", luau.create_function(require)?)?;

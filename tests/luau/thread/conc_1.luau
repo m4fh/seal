@@ -9,6 +9,8 @@ while true do
 	print("heh")
 	if reps > 24 then
 		break
+	elseif reps == 18 then
+		error("how break traceback?")
 	end
 end
 

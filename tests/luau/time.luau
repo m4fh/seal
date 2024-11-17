@@ -1,9 +1,9 @@
 local time = require("@std/time")
 local datetime = time.datetime
+local thread = require("@std/thread") -- thread.sleep does time too
 -- assert(datetime == require("@std/time/datetime"))
 
 local now = datetime.now()
-
 local common_formats = datetime.common_formats
 
 print(`the time is now {datetime.now():format(datetime.common_formats["HH:MM (AM/PM)"])}`)
@@ -16,7 +16,14 @@ for format_name, format_string in common_formats do
 	print(nowfmt(format_name, format_string))
 end
 
+print("\n")
+
+local t0 = os.clock()
+thread.sleep(20)
+print(`{os.clock() - t0} seconds for ~20 ms`)
+
 local start_t = os.clock()
 time.wait(2)
 local elapsed = os.clock() - start_t
 assert(math.round(elapsed) == 2, "wth why time not timing?")
+print(`{elapsed} seconds for 2 seconds`)

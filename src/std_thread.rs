@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, time::Duration};
 use std::sync::Mutex;
 use std::thread;
 #[allow(unused_imports)]
@@ -11,7 +11,9 @@ use regex::Regex;
 use crate::{table_helpers::TableBuilder, LuaValueResult, colors, globals_require};
 use mlua::prelude::*;
 
-fn thread_sleep(luau: &Lua, duration: LuaNumber) -> LuaValueResult {
+fn thread_sleep(_luau: &Lua, duration: LuaNumber) -> LuaValueResult {
+	let dur = Duration::from_millis(duration as u64);
+	thread::sleep(dur);
 	Ok(LuaNil)
 }
 
@@ -109,5 +111,6 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
 	TableBuilder::create(luau)?
 		.with_function("spawn", thread_spawn)?
+		.with_function("sleep", thread_sleep)?
 		.build_readonly()
 }
