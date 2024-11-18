@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(clippy::single_char_add_str)]
 
 use regex::Regex;
 use mlua::prelude::*;
@@ -44,7 +45,7 @@ pub fn debug_print(luau: &Lua, stuff: LuaMultiValue) -> LuaResult<LuaString> {
 	}
 
     println!("{}", result.clone());
-    Ok(luau.create_string(&result)?)
+    luau.create_string(&result)
 }
 
 fn format_debug(luau: &Lua, stuff: LuaMultiValue) -> LuaResult<LuaString> {
@@ -58,7 +59,7 @@ fn format_debug(luau: &Lua, stuff: LuaMultiValue) -> LuaResult<LuaString> {
 		}
 	}
 
-    Ok(luau.create_string(&result)?)
+    luau.create_string(&result)
 }
 
 
@@ -104,7 +105,7 @@ fn process_pretty_values(value: LuaValue, result: &mut String, depth: usize) -> 
 			let standard_s = s.to_string_lossy();
 			let formatted_s = {
 				if depth == 0 {
-					format!("{standard_s}")
+					standard_s.to_string()
 				} else {
 					format!("{GREEN}\"{standard_s}\"{RESET}")
 				}

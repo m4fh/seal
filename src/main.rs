@@ -65,22 +65,20 @@ fn main() -> LuaResult<()> {
  
         if file_path.ends_with(".lua") {
             panic!("wrong language!! this runtime is meant for the Luau language, if you want to run .lua files, pick another runtime please.");
-        } else if !fs::metadata(&file_path).is_ok() {
+        } else if fs::metadata(&file_path).is_err() {
             panic!(r#"Requested file doesn't exist: "{}{}{}"{}"#, colors::RESET, &file_path, colors::RED, colors::RESET);
-        } else {
-            if fs::metadata(&file_path)?.is_dir() {
-                // we should be able to 'run' directories that contain a file named init.luau
-                let find_init_filepath = String::from(file_path.clone() + "/init.luau");
-                if fs::metadata(&find_init_filepath).is_ok() {
-                    fs::read_to_string(&find_init_filepath)?
-                } else {
-                    panic!(r#"Requested file is actually a directory: "{}{}{}"{}{}"#, colors::RESET, &file_path, colors::RED, colors::RESET, "\n  Hint: add a file named 'init.luau' to run this directory itself :)");
-                }
-            } else if file_path.ends_with(".luau") {
-                fs::read_to_string(&file_path)?
+        } else if fs::metadata(&file_path)?.is_dir() {
+            // we should be able to 'run' directories that contain a file named init.luau
+            let find_init_filepath = file_path.clone() + "/init.luau";
+            if fs::metadata(&find_init_filepath).is_ok() {
+                fs::read_to_string(&find_init_filepath)?
             } else {
-                panic!(r#"Invalid file extension: expected file path to end with .luau (or be a directory containing an init.luau), got path: "{}{}{}"{}"#, colors::RESET, &file_path, colors::RED, colors::RESET);
+                panic!(r#"Requested file is actually a directory: "{}{}{}"{}{}"#, colors::RESET, &file_path, colors::RED, colors::RESET, "\n  Hint: add a file named 'init.luau' to run this directory itself :)");
             }
+        } else if file_path.ends_with(".luau") {
+            fs::read_to_string(&file_path)?
+        } else {
+            panic!(r#"Invalid file extension: expected file path to end with .luau (or be a directory containing an init.luau), got path: "{}{}{}"{}"#, colors::RESET, &file_path, colors::RED, colors::RESET);
         }
     };
 

@@ -162,13 +162,13 @@ pub fn handle_exit_callback(luau: &Lua, exit_code: i32) -> LuaResult<()> {
 fn exit(luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
     let exit_code = if let Some(exit_code) = exit_code {
         match exit_code {
-            LuaValue::Integer(i) => i as i32,
+            LuaValue::Integer(i) => i,
             _ => {
                 return wrap_err!("process.exit expected exit_code to be a number (integer) or nil, got {:?}", exit_code);
             }
         }
     } else {
-        0 as i32
+        0
     };
 	// if we have custom callback function let's call it 
 	let globals = luau.globals();

@@ -98,7 +98,7 @@ fn fs_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
 }
 
 pub fn fs_readfile(_: &Lua, file_path: String) -> LuaResult<String> {
-    let result = match fs::read_to_string(&file_path) {
+    match fs::read_to_string(&file_path) {
         Ok(content) => Ok(content),
         Err(err) => {
             let err_message = match err.kind() {
@@ -108,8 +108,7 @@ pub fn fs_readfile(_: &Lua, file_path: String) -> LuaResult<String> {
             };
             Err(LuaError::external(err_message))
         }
-    };
-    Ok(result?)
+    }
 }
 
 /**
@@ -138,14 +137,14 @@ pub fn fs_writefile(_luau: &Lua, write_file_options: LuaValue) -> LuaValueResult
                 }
             };
             let should_overwrite = match options.get("overwrite")? {
-                LuaValue::Boolean(b) => if b == true {true} else {false},
+                LuaValue::Boolean(b) => b,
                 LuaValue::Nil => true,
                 other => {
                     panic!("WriteFileOptions expected overwrite to be a boolean or nil, got: {:?}", other);
                 }
             };
 
-            if !fs::metadata(file_path.clone()).is_ok() || should_overwrite {
+            if fs::metadata(file_path.clone()).is_err() || should_overwrite {
                 let mut new_file = fs::File::create(file_path)?;
                 new_file.write_all(file_content.as_bytes())?;
                 Ok(LuaNil)
@@ -162,7 +161,7 @@ pub fn fs_writefile(_luau: &Lua, write_file_options: LuaValue) -> LuaValueResult
 }
 
 fn does_file_exist(file_path: &str) -> bool {
-    fs::metadata(&file_path).is_ok()
+    fs::metadata(file_path).is_ok()
 }
 
 fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
@@ -191,12 +190,12 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
                 let find_options = multivalue.pop_front().unwrap();
                 match find_options {
                     LuaValue::String(find_path) => {
-                        let new_path = format!("{entry_path}/{}", find_path.to_str()?.to_string());
+                        let new_path = format!("{entry_path}/{}", find_path.to_str()?);
                         Ok(fs_find(luau, new_path.into_lua(luau)?))
                     }, 
                     LuaValue::Table(find_table) => {
                         if let LuaValue::String(file_path) = find_table.get("file")? {
-                            let new_path = format!("{entry_path}/{}", file_path.to_str()?.to_string());
+                            let new_path = format!("{entry_path}/{}", file_path.to_str()?);
                             find_table.set("file", new_path)?;
                         }
                         Ok(fs_find(luau, LuaValue::Table(find_table)))
@@ -299,7 +298,7 @@ pub fn fs_move(_luau: &Lua, from_to: LuaMultiValue) -> LuaValueResult {
 }
 
 fn is_dir_empty(path: &str) -> bool {
-    match fs::read_dir(&path) {
+    match fs::read_dir(path) {
         Ok(mut entries) => entries.next().is_none(),
         Err(_) => {
             panic!("Error reading path {}", &path);
@@ -335,10 +334,8 @@ pub fn fs_remove(_luau: &Lua, remove_options: LuaValue) -> LuaValueResult {
                             } else {
                                 fs::remove_dir_all(&directory_path)?;
                             }
-                        } else {
-                            if is_dir_empty(&directory_path) {
-                                fs::remove_dir(&directory_path)?;
-                            }
+                        } else if is_dir_empty(&directory_path) {
+                            fs::remove_dir(&directory_path)?;
                         }
                     },
                     LuaValue::Nil => {

@@ -89,7 +89,7 @@ fn globals_try(luau: &Lua, f: LuaValue) -> LuaValueResult {
 			let result_table = luau.create_table()?;
 
 			if let LuaValue::Boolean(success) = success {
-				if success == true {
+				if success {
 					result_table.set("ok", true)?;
 					result_table.set("result", result)?;
 					result_table.set("match", luau.create_function(

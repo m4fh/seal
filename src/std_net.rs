@@ -16,7 +16,7 @@ pub fn net_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                         .with_value("body", body.clone())?
                         .with_function("decode", {
                             move | luau: &Lua, _: LuaMultiValue | {
-                                Ok(std_json::json_decode(luau, body.to_owned())?)
+                                std_json::json_decode(luau, body.to_owned())
                             }
                         })?
                         .build_readonly()?;
@@ -54,14 +54,14 @@ pub fn net_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                     let (key, value) = pair?;
                     get_builder = get_builder.header(key, value);
                 }
-            } else {};
+            };
 
             if let LuaValue::Table(headers_table) = config.get("params")? {
                 for pair in headers_table.pairs::<String, String>() {
                     let (key, value) = pair?;
                     get_builder = get_builder.query(key, value);
                 }
-            } else {};
+            };
 
             let body: Option<String> = {
                 match config.get("body")? {
@@ -159,14 +159,14 @@ pub fn net_post(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                     let (key, value) = pair?;
                     get_builder = get_builder.header(key, value);
                 }
-            } else {};
+            };
 
             if let LuaValue::Table(headers_table) = config.get("params")? {
                 for pair in headers_table.pairs::<String, String>() {
                     let (key, value) = pair?;
                     get_builder = get_builder.query(key, value);
                 }
-            } else {};
+            };
 
             let body = {
                 match config.get("body")? {
@@ -189,7 +189,7 @@ pub fn net_post(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                     let json_decode_body = {
                         let body_clone = body.clone();
                         move |luau: &Lua, _: LuaMultiValue| {
-                            Ok(std_json::json_decode(luau, body_clone.to_owned())?)
+                            std_json::json_decode(luau, body_clone.to_owned())
                         }
                     };
                     let result = TableBuilder::create(luau)?

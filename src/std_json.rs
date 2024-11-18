@@ -65,7 +65,7 @@ pub fn json_decode(luau: &Lua, json: String) -> LuaResult<LuaValue> {
 
 fn json_readfile(luau: &Lua, file_path: String) -> LuaResult<LuaValue> {
     let file_content = std_fs::fs_readfile(luau, file_path)?;
-    Ok(json_decode(luau, file_content)?)
+    json_decode(luau, file_content)
 }
 
 fn json_writefile(luau: &Lua, json_write_options: LuaValue) -> LuaResult<LuaValue> {

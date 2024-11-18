@@ -2,7 +2,6 @@ use crate::{table_helpers::TableBuilder, wrap_err, colors};
 use crate::LuaValueResult;
 use std::{thread, time::Duration};
 
-use chrono;
 use mlua::prelude::*;
 
 fn time_wait(_luau: &Lua, seconds: LuaNumber) -> LuaValueResult {

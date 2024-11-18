@@ -12,5 +12,6 @@
 	"luau-lsp.types.definitionFiles": ["typedefs/globals.d.luau"],
 	"code-runner.executorMap": {
 		"luau": "cargo build && ./target/debug/seal ",
-	}
+	},
+	"rust-analyzer.check.command": "clippy",
 }
