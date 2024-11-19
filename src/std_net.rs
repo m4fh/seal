@@ -181,14 +181,12 @@ pub fn net_post(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                 }
             };
 
-            let send_result = get_builder.send(body);
-
-            match send_result {
+            match get_builder.send(body) {
                 Ok(mut result) => {
                     let body = result.body_mut().read_to_string().unwrap_or(String::from(""));
                     let json_decode_body = {
                         let body_clone = body.clone();
-                        move |luau: &Lua, _: LuaMultiValue| {
+                        move |luau: &Lua, _: LuaMultiValue| -> LuaValueResult {
                             std_json::json_decode(luau, body_clone.to_owned())
                         }
                     };

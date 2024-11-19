@@ -12,7 +12,6 @@ fn time_wait(_luau: &Lua, seconds: LuaNumber) -> LuaValueResult {
 }
 
 fn time_datetime_now(luau: &Lua, _: LuaValue) -> LuaValueResult {
-    // let now = Utc::now();
     let now = chrono::Local::now();
     Ok(LuaValue::Table(
         TableBuilder::create(luau)?
@@ -21,7 +20,7 @@ fn time_datetime_now(luau: &Lua, _: LuaValue) -> LuaValueResult {
                 match multivalue.pop_back() {
                     Some(LuaValue::String(format_string)) => {
                         let format_string = format_string.to_str()?.to_string();
-                        Ok(now.format(&format_string).to_string().into_lua(luau)?)
+                        now.format(&format_string).to_string().into_lua(luau)
                     }, 
                     other => {
                         wrap_err!("DateTime.format expected format string to be a string, got: {:?}", other)

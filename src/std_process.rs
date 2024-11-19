@@ -70,8 +70,8 @@ fn run_program(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
 						result_table.set("out", stdout)?;
 						result_table.set("unwrap", luau.create_function(
 							|_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
-								let spawn_result_self = match multivalue.pop_front() {
-									Some(LuaValue::Table(_self)) => _self,
+								let spawn_result = match multivalue.pop_front() {
+									Some(LuaValue::Table(spawn_result)) => spawn_result,
 									Some(LuaValue::Nil) => {
 										return wrap_err!("ProcessRunResult:unwrap() expected self to be self, got nil");
 									},
@@ -82,7 +82,7 @@ fn run_program(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
 										return wrap_err!("ProcessRunResult:unwrap() expected self, got nothing. Did you forget a colon (:) (method syntax)?");
 									}
 								};
-								let stdout: LuaValue = spawn_result_self.raw_get("stdout")?;
+								let stdout: LuaValue = spawn_result.raw_get("stdout")?;
 								Ok(stdout)
 							})?
 						)?;
@@ -91,8 +91,8 @@ fn run_program(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
 						result_table.set("err", stderr)?;
 						result_table.set("unwrap", luau.create_function(
 							|_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
-								let _self = match multivalue.pop_front() {
-									Some(LuaValue::Table(_self)) => _self,
+								let _spawn_result = match multivalue.pop_front() {
+									Some(LuaValue::Table(spawn_result)) => spawn_result,
 									Some(LuaValue::Nil) => {
 										return wrap_err!("ProcessRunResult:unwrap() expected self to be self, got nil");
 									},
