@@ -1,5 +1,6 @@
 use mlua::prelude::*;
-use std::{fs, env, panic};
+use table_helpers::TableBuilder;
+use std::{fs, env, panic, path::Path};
 use regex::Regex;
 
 mod table_helpers;
@@ -25,8 +26,6 @@ use crate::std_io_colors as colors;
 type LuaValueResult = LuaResult<LuaValue>;
 
 fn main() -> LuaResult<()> {
-    let luau = Lua::new();
-
     panic::set_hook(Box::new(|info| {
         let payload = info.payload().downcast_ref::<&str>().map(|s| s.to_string())
             .or_else(|| info.payload().downcast_ref::<String>().cloned())
@@ -40,55 +39,85 @@ fn main() -> LuaResult<()> {
         panic!("Bad usage: did you forget to pass me a file?")
     }
 
-    let globals = luau.globals();
-    
-    let luau_code: String =  'gotcoded: {
-        let first_arg = args[1].clone();
+    let first_arg = args[1].clone();
 
+    if first_arg == "--help" || first_arg == "-h" {
+        println!("help");
+        return Ok(());
+    }
+
+    let luau = Lua::new();
+    let globals = luau.globals();
+
+    let mut luau_code: String = {
         if first_arg == "eval" {
             let table = LuaValue::Table;
+
             let globals = luau.globals();
             globals.set("fs", table(std_fs::create(&luau)?))?;
             globals.set("process", table(std_process::create(&luau)?))?;
             globals.set("net", table(std_net::create(&luau)?))?;
-            break 'gotcoded args[2].clone();
-        };
 
-        let file_path = first_arg;
-
-        let script = table_helpers::TableBuilder::create(&luau)?
-            .with_value("entry_path", file_path.to_owned())?
-            .with_value("current_path", file_path.to_owned())?
-            .with_value("required_files", luau.create_table()?)?
-            .build()?;
-        globals.set("script", script)?;
- 
-        if file_path.ends_with(".lua") {
-            panic!("wrong language!! this runtime is meant for the Luau language, if you want to run .lua files, pick another runtime please.");
-        } else if fs::metadata(&file_path).is_err() {
-            panic!(r#"Requested file doesn't exist: "{}{}{}"{}"#, colors::RESET, &file_path, colors::RED, colors::RESET);
-        } else if fs::metadata(&file_path)?.is_dir() {
-            // we should be able to 'run' directories that contain a file named init.luau
-            let find_init_filepath = file_path.clone() + "/init.luau";
-            if fs::metadata(&find_init_filepath).is_ok() {
-                fs::read_to_string(&find_init_filepath)?
-            } else {
-                panic!(r#"Requested file is actually a directory: "{}{}{}"{}{}"#, colors::RESET, &file_path, colors::RED, colors::RESET, "\n  Hint: add a file named 'init.luau' to run this directory itself :)");
-            }
-        } else if file_path.ends_with(".luau") {
-            fs::read_to_string(&file_path)?
+            args[2].clone()
         } else {
-            panic!(r#"Invalid file extension: expected file path to end with .luau (or be a directory containing an init.luau), got path: "{}{}{}"{}"#, colors::RESET, &file_path, colors::RED, colors::RESET);
+            let file_path = first_arg.clone();
+
+            if file_path.ends_with(".lua") {
+                panic!("Wrong language! Pick a different runtime if you want to run Lua files.")
+            }
+
+            globals.set("script", TableBuilder::create(&luau)?
+                .with_value("entry_path", file_path.to_owned())?
+                .with_value("current_path", file_path.to_owned())?
+                .with_value("required_files", luau.create_table()?)?
+                .build()?
+            )?;
+
+            let path_metadata = fs::metadata(&file_path);
+            match path_metadata {
+                Ok(metadata) => {
+                    if metadata.is_file() && file_path.ends_with(".luau") {
+                        fs::read_to_string(&file_path)?
+                    } else if metadata.is_dir() {
+                        // we should be able to 'run' directories that contain an init.luau
+                        let find_init_filepath = Path::new(&file_path).join("init.luau");
+                        if find_init_filepath.exists() {
+                            fs::read_to_string(&find_init_filepath)?
+                        } else {
+                            panic!(r#"seal: Requested file is actually a directory: "{}{}{}"{}{}"#, colors::RESET, &file_path, colors::RED, colors::RESET, "\n  Hint: add a file named 'init.luau' to run this directory itself :)");
+                        }
+                    } else {
+                        panic!(r#"Invalid file extension: expected file path to end with .luau (or be a directory containing an init.luau), got path: "{}{}{}"{}"#, colors::RESET, &file_path, colors::RED, colors::RESET);
+                    }
+                },
+                Err(err) => {
+                    panic!("seal: Provided path is Not Ok: {}", err);
+                }
+            }
         }
     };
+    
+    // handle shebangs by stripping first line by slicing from first newline
+    if luau_code.starts_with("#!") {
+        if let Some(first_newline_pos) = luau_code.find('\n') {
+            luau_code = luau_code[first_newline_pos + 1..].to_string();
+        }
+    }
+
+    if first_arg == "eval" {
+        println!("{luau_code}");
+    }
 
     let script: LuaTable = globals.get("script")?;
     script.set("src", luau_code.to_owned())?;
 
     globals_require::set_globals(&luau)?;
 
-    let result = match luau.load(luau_code).exec() {
-        Ok(()) => Ok(()),
+    match luau.load(luau_code).exec() {
+        Ok(()) => {
+            std_process::handle_exit_callback(&luau, 0)?;
+            Ok(())
+        },
         Err(err) => {
             let replace_main_re = Regex::new(r#"\[string \"[^\"]+\"\]"#).unwrap();
             let script: LuaTable = globals.get("script")?;
@@ -107,11 +136,9 @@ fn main() -> LuaResult<()> {
                 }
             };
             panic!("{}", err_message);
-        }
-    };
-
-    std_process::handle_exit_callback(&luau, 0)?;
-
-    result
-
+        },
+        // Err(other) => {
+        //     panic!("Unexpected internal error: {}", other);
+        // }
+    }
 }
