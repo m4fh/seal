@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use regex::Regex;
 
-use crate::{table_helpers::TableBuilder, LuaValueResult, colors, globals_require};
+use crate::{table_helpers::TableBuilder, LuaValueResult, colors, globals};
 use mlua::prelude::*;
 
 fn thread_sleep(_luau: &Lua, duration: LuaNumber) -> LuaValueResult {
@@ -46,7 +46,7 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 			let handle = thread::spawn(|| {
 				let new_luau = mlua::Lua::new();
 
-				globals_require::set_globals(&new_luau).unwrap();
+				globals::set_globals(&new_luau).unwrap();
 
 				new_luau.globals().set("script",
 					TableBuilder::create(&new_luau).unwrap()

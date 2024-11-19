@@ -18,9 +18,8 @@ mod std_io_input;
 mod std_net;
 mod std_thread;
 
-mod globals_require;
+mod globals;
 
-use crate::err_handling as errs;
 use crate::std_io_colors as colors;
 
 type LuaValueResult = LuaResult<LuaValue>;
@@ -46,7 +45,7 @@ fn main() -> LuaResult<()> {
         return Ok(());
     }
 
-    let luau = Lua::new();
+    let luau: Lua = Lua::new();
     let globals = luau.globals();
 
     let mut luau_code: String = {
@@ -58,7 +57,16 @@ fn main() -> LuaResult<()> {
             globals.set("process", table(std_process::create(&luau)?))?;
             globals.set("net", table(std_net::create(&luau)?))?;
 
-            args[2].clone()
+            globals.set("script", TableBuilder::create(&luau)?
+                .with_value("current_path", "eval")?
+                .build()?
+            )?;
+
+            if args.len() <= 2 {
+                panic!("seal eval got nothing to eval, did you forget to pass in a string?");
+            } else {
+                args[2].clone()
+            }
         } else {
             let file_path = first_arg.clone();
 
@@ -104,14 +112,10 @@ fn main() -> LuaResult<()> {
         }
     }
 
-    if first_arg == "eval" {
-        println!("{luau_code}");
-    }
-
     let script: LuaTable = globals.get("script")?;
     script.set("src", luau_code.to_owned())?;
 
-    globals_require::set_globals(&luau)?;
+    globals::set_globals(&luau)?;
 
     match luau.load(luau_code).exec() {
         Ok(()) => {
@@ -137,8 +141,6 @@ fn main() -> LuaResult<()> {
             };
             panic!("{}", err_message);
         },
-        // Err(other) => {
-        //     panic!("Unexpected internal error: {}", other);
-        // }
     }
+
 }

@@ -37,7 +37,6 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
 
 		let captures = extract_path_re.captures(&current_path).unwrap();
 		let new_path = &captures[1];
-		println!("{new_path}");
 		let path = path.replace("./", "");
 		let path = format!("{new_path}{path}");
 		let path_ref = path.clone();
@@ -67,10 +66,10 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
 		script.set("current_path", current_path.to_owned())?;
 		Ok(result)
     } else {
-        errs::wrap_with(
-            "Invalid require path: Luau requires must start with a require alias (ex. \"@alias/path.luau\") or relative path (ex. \"./path.luau\").", 
+		wrap_err!(
+			"Invalid require path: Luau requires must start with a require alias (ex. \"@alias/path.luau\") or relative path (ex. \"./path.luau\").".to_owned() +
             "\nNotes:\n  - ending a require with .luau is optional\n  - implicit relative paths (ex. require(\"file.luau\") without ./) are no longer allowed; see: https://github.com/luau-lang/rfcs/pull/56"
-        )
+		)
     }
 }
 
