@@ -62,7 +62,6 @@ fn format_debug(luau: &Lua, stuff: LuaMultiValue) -> LuaResult<LuaString> {
     luau.create_string(&result)
 }
 
-
 fn process_pretty_values(value: LuaValue, result: &mut String, depth: usize) -> LuaResult<()> {
 	let is_regular_identifier_re = Regex::new(r"^[A-Za-z_]+[0-9]*$").unwrap();
 	let left_padding = " ".repeat(4 * depth);
@@ -134,6 +133,10 @@ fn process_pretty_values(value: LuaValue, result: &mut String, depth: usize) -> 
         LuaValue::Nil => {
             result.push_str(&format!("{RED}nil{RESET}"));
         },
+		LuaValue::Error(err) => {
+			let stringified_error = err.to_string();
+			result.push_str(&format!("{RED}<{stringified_error}>{RESET}"));
+		}
 		_ => {
 			result.push_str(&format!("{:?}", value));
 		}

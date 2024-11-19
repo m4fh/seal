@@ -4,7 +4,7 @@ use io::Write;
 
 use regex::Regex;
 use crate::{table_helpers::TableBuilder, LuaValueResult};
-use crate::{err_handling as errs, wrap_err, std_io_colors as colors};
+use crate::{wrap_err, std_io_colors as colors};
 
 fn fs_listdir(luau: &Lua, path: String) -> LuaResult<LuaTable> {
     match fs::metadata(&path) {
@@ -236,8 +236,8 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
                             };
                             Ok(LuaValue::Table(v))
                         } else {
-                            println!("{:#?}", v);
-                            todo!()
+                            // println!("{:#?}", v);
+                            todo!("tree creation not yet implemented")
                         }
                     },
                     other => wrap_err!("DirectoryEntry:create for {} expected to be called with a table containing key 'dictionary' or key 'string', got {:?}", &entry_path, other)
@@ -347,7 +347,7 @@ pub fn fs_remove(_luau: &Lua, remove_options: LuaValue) -> LuaValueResult {
                 }
                 Ok(LuaNil)
             } else {
-                errs::wrap("fs.remove received invalid arguments; expected RemoveOptions.file or RemoveOptions.directory.")
+                wrap_err!("fs.remove received invalid arguments; expected RemoveOptions.file or RemoveOptions.directory.")
             }
         },
         other => {
