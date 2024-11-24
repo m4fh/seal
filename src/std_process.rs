@@ -1,9 +1,9 @@
 use std::process::{self, Command};
 
 use mlua::prelude::*;
-use crate::{colors, table_helpers::TableBuilder, wrap_err, LuaValueResult};
+use crate::{std_env, colors, table_helpers::TableBuilder, wrap_err, LuaValueResult};
 
-fn run_program(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
+fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
 	match run_options {
 		LuaValue::Table(run_options) => {
 			match run_options.get("program")? {
@@ -127,7 +127,24 @@ fn run_program(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
 	
 }
 
-fn set_exit_callback(luau: &Lua, f: Option<LuaValue>) -> LuaResult<LuaValue> {
+fn process_shell(luau: &Lua, shell_command: LuaValue) -> LuaValueResult {
+	let shell_path = std_env::get_current_shell();
+	match shell_command {
+		LuaValue::String(command) => {
+			process_run(luau, LuaValue::Table(
+				TableBuilder::create(luau)?
+					.with_value("program", command)?
+					.with_value("shell", shell_path)?
+					.build_readonly()?
+			))
+		},
+		other => {
+			wrap_err!("process.shell(command) expected command to be a string, got: {:#?}", other)
+		}
+	}
+}
+
+fn set_exit_callback(luau: &Lua, f: Option<LuaValue>) -> LuaValueResult {
 	if let Some(f) = f {
 		match f {
 			LuaValue::Function(f) => {
@@ -187,7 +204,8 @@ fn exit(luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
 	TableBuilder::create(luau)?
-		.with_function("run", run_program)?
+		.with_function("run", process_run)?
+		.with_function("shell", process_shell)?
 		.with_function("setexitcallback", set_exit_callback)?
         .with_function("exit", exit)?
 		.build_readonly()

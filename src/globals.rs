@@ -10,17 +10,23 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
         match path.as_str() {
             "@std/fs" => Ok(table(std_fs::create(luau)?)),
             "@std/env" => Ok(table(std_env::create(luau)?)),
+
             "@std/io" => Ok(table(std_io::create(luau)?)),
             "@std/io/input" => Ok(table(std_io_input::create(luau)?)),
             "@std/io/output" => Ok(table(std_io_output::create(luau)?)),
             "@std/io/colors" => Ok(table(colors::create(luau)?)),
             "@std/io/format" => Ok(function(luau.create_function(std_io_output::prettify_output)?)),
             "@std/colors" => Ok(table(colors::create(luau)?)),
+
             "@std/time" => Ok(table(std_time::create(luau)?)),
 			"@std/time/datetime" => Ok(table(std_time::create_datetime(luau)?)),
+
             "@std/process" => Ok(table(std_process::create(luau)?)),
+			"@std/shellexec" => Ok(function(luau.create_function(std_shellexec::shellexec)?)),
+
             "@std/net" => Ok(table(std_net::create(luau)?)),
             "@std/json" => Ok(table(std_json::create(luau)?)),
+			
 			"@std/thread" => Ok(table(std_thread::create(luau)?)),
             other => {
                 wrap_err!("program required an unexpected standard library: {}", other)

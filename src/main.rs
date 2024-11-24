@@ -17,6 +17,7 @@ mod std_io_colors;
 mod std_io_input;
 mod std_net;
 mod std_thread;
+mod std_shellexec;
 
 mod globals;
 

@@ -9,3 +9,4 @@ mlua = {version = "0.10.0", features = ["luau", "serialize"]}
 regex = "1.11.1"
 serde_json = {version = "1.0", features = ["arbitrary_precision"]}
 ureq = { version = "3.0.0-rc2", features = ["json", "rustls", "gzip"]}
+libc = { version = "0.2" }

@@ -525,6 +525,7 @@ name = "seal"
 version = "0.1.1"
 dependencies = [
  "chrono",
+ "libc",
  "mlua",
  "regex",
  "serde_json",
