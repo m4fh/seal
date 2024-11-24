@@ -25,14 +25,6 @@ use crate::std_io_colors as colors;
 type LuaValueResult = LuaResult<LuaValue>;
 
 fn main() -> LuaResult<()> {
-    panic::set_hook(Box::new(|info| {
-        let payload = info.payload().downcast_ref::<&str>().map(|s| s.to_string())
-            .or_else(|| info.payload().downcast_ref::<String>().cloned())
-            .unwrap_or_else(|| "Unknown error, please report this to the manager (deviaze)".to_string());
-        
-        eprintln!("{}[ERR]{}{} {}{}", colors::BOLD_RED, colors::RESET, colors::RED, payload, colors::RESET);
-    }));
-    
     let args: Vec<String> = env::args().collect();
     if args.len() <= 1 {
         panic!("Bad usage: did you forget to pass me a file?")
@@ -43,6 +35,18 @@ fn main() -> LuaResult<()> {
     if first_arg == "--help" || first_arg == "-h" {
         println!("help");
         return Ok(());
+    }
+
+    if args.len() == 3 && args[2] == "--debug" {
+        // don't mess with panic formatting
+    } else {
+        panic::set_hook(Box::new(|info| {
+            let payload = info.payload().downcast_ref::<&str>().map(|s| s.to_string())
+                .or_else(|| info.payload().downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "Unknown error, please report this to the manager (deviaze)".to_string());
+            
+            eprintln!("{}[ERR]{}{} {}{}", colors::BOLD_RED, colors::RESET, colors::RED, payload, colors::RESET);
+        }));
     }
 
     let luau: Lua = Lua::new();
