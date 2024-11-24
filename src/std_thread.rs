@@ -43,6 +43,13 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 					wrap_err!("thread.spawn expected table with fields src or path, got neither")
 				}
 			}?;
+			let spawn_data = {
+				if let LuaValue::Table(data) = options.raw_get("data")? {
+					Some(std_json::json_encode(luau, LuaValue::Table(data))?)
+				} else {
+					None
+				}
+			};
 			// allows child to read messages sent from parent thread
 			let (sender, receiver): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
 			// allows parent to read messages sent from child thread
@@ -108,6 +115,10 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 									wrap_err!("channel:send() (in thread) Unable to send data: {}", err)
 								}
 							}
+						}).unwrap()
+						.with_value("data", match spawn_data {
+							Some(data) => std_json::json_decode(&new_luau, data).unwrap(),
+							None => LuaNil
 						}).unwrap()
 						.build().unwrap()
 				).unwrap();

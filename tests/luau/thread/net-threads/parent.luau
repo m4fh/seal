@@ -1,7 +1,7 @@
 --!nolint LocalShadow
 local thread = require("@std/thread")
 local net = require("@std/net")
-local format = require("@std/prettify")
+local format = require("@std/io/format")
 
 local urls = {
 	"https://meow.com",
@@ -23,7 +23,7 @@ for _, url in urls do
 		results[url] = result.body
 	end
 end
-print(`{os.clock() - s_t} seconds in sync`)
+print(`{os.clock() - s_t} seconds in serial`)
 
 local s_t = os.clock()
 
@@ -32,11 +32,11 @@ local results: { [string]: string } = {}
 
 for _, url in urls do
 	local handle = thread.spawn({
-		path = "./send_request.luau"
+		path = "./send_request.luau",
+		data = {
+			url = url,
+		}
 	})
-	handle:send {
-		url = url
-	}
 	handles[url] = handle
 end
 
@@ -58,7 +58,7 @@ for url, handle in handles do
 	handle:join()
 end
 
-print(`{os.clock() - s_t} seconds async with os threads :)`)
+print(`{os.clock() - s_t} seconds in parallel/synchronously with os threads :)`)
 
 local results_by_len = {}
 for url, result in results do

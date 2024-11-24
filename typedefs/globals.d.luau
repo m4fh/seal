@@ -19,7 +19,9 @@ declare script: {
 
 declare channel: {
 	send: <T>(self: any, data: T | string) -> (),
-	read: <T>(self: any) -> T?
+	read: <T>(self: any) -> T?,
+	--- optional data passed into a thread upon thread.spawn
+	data: any?,
 }?
 
 declare function try(protected_f: () -> any): {

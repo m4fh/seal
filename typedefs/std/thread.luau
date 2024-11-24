@@ -6,7 +6,7 @@ export type ThreadHandle = {
 	read: <D>(self: ThreadHandle) -> D?,
 }
 
-function thread.spawn(spawn_options: {src: string} | {path: string}): ThreadHandle
+function thread.spawn(spawn_options: {src: string, data: any?} | {path: string, data: any?}): ThreadHandle
 	return nil :: any
 end
 
