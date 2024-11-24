@@ -17,7 +17,12 @@ declare script: {
 	src: string,
 }
 
-declare function try(f: () -> any): {
+declare channel: {
+	send: <T>(self: any, data: T | string) -> (),
+	read: <T>(self: any) -> T?
+}?
+
+declare function try(protected_f: () -> any): {
 	ok: boolean,
 	match: (self: any, matcher: {
 		ok: (result: any?) -> any?,

@@ -1,7 +1,9 @@
 local thread = {}
 
 export type ThreadHandle = {
-	join: (self: ThreadHandle) -> ()
+	join: (self: ThreadHandle) -> (),
+	send: <D>(self: ThreadHandle, data: D | string) -> (),
+	read: <D>(self: ThreadHandle) -> D?,
 }
 
 function thread.spawn(spawn_options: {src: string} | {path: string}): ThreadHandle
@@ -11,7 +13,7 @@ end
 --[=[
 Literally the same as `time.wait`, except in milliseconds.
 ]=]
-function thread.sleep(milliseconds: number): ()
+function thread.sleep(milliseconds: number): true
 	return nil :: any
 end
 

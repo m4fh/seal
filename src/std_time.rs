@@ -8,7 +8,7 @@ fn time_wait(_luau: &Lua, seconds: LuaNumber) -> LuaValueResult {
     let millis = (seconds * 1000.0) as u64;
     let dur = Duration::from_millis(millis);
     thread::sleep(dur);
-    Ok(LuaNil)
+    Ok(LuaValue::Boolean(true)) // return true to ensure while time.wait(n) works
 }
 
 fn time_datetime_now(luau: &Lua, _: LuaValue) -> LuaValueResult {

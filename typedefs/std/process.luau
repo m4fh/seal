@@ -35,7 +35,7 @@ type process = {
 	spawn: (SpawnOptionsConcurrent) -> SpawnHandleResult,
 	setexitcallback: ((number) -> ()) -> (),
 	watch: (RunOptions) -> any,
-	exit: (code: number?) -> (),
+	exit: (code: number?) -> never,
 }
 
 return {} :: process

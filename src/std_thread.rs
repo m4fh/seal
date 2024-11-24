@@ -8,13 +8,13 @@ use std::sync::Arc;
 
 use regex::Regex;
 
-use crate::{table_helpers::TableBuilder, LuaValueResult, colors, globals};
+use crate::{table_helpers::TableBuilder, LuaValueResult, colors, globals, std_json};
 use mlua::prelude::*;
 
 fn thread_sleep(_luau: &Lua, duration: LuaNumber) -> LuaValueResult {
 	let dur = Duration::from_millis(duration as u64);
 	thread::sleep(dur);
-	Ok(LuaNil)
+	Ok(LuaValue::Boolean(true)) // ensure while thread.sleep(n) do end works
 }
 
 fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
@@ -43,16 +43,72 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 					wrap_err!("thread.spawn expected table with fields src or path, got neither")
 				}
 			}?;
-			let handle = thread::spawn(|| {
+			// allows child to read messages sent from parent thread
+			let (sender, receiver): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
+			// allows parent to read messages sent from child thread
+			let (child_sender, child_receiver): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
+
+			let handle = thread::spawn(move || {
 				let new_luau = mlua::Lua::new();
 
 				globals::set_globals(&new_luau).unwrap();
 
-				new_luau.globals().set("script",
+				new_luau.globals().raw_set("script",
 					TableBuilder::create(&new_luau).unwrap()
 						.with_value("current_path", thread_src_path).unwrap()
 						.with_value("thread_parent_path", thread_called_from_path).unwrap()
 						.with_value("src", spawn_src.to_owned()).unwrap()
+						.build().unwrap()
+				).unwrap();
+
+				new_luau.globals().raw_set("channel",
+					TableBuilder::create(&new_luau).unwrap()
+						.with_function("read", move |new_luau: &Lua, _multivalue: LuaMultiValue| -> LuaValueResult {
+							match receiver.try_recv() {
+								Ok(data) => {
+									if data.starts_with("{") {
+										// it's some json we have to decode and return
+										let json_result = match std_json::json_decode(new_luau, data) {
+											Ok(value) => value,
+											Err(err) => {
+												return wrap_err!("channel:read(): error decoding json: {}", err);
+											}
+										};
+										Ok(json_result)
+										// let json_result = std_json::json_decode(new_luau, data)?;
+									} else {
+										data.into_lua(new_luau)
+									}
+								},
+								Err(_) => Ok(LuaNil)
+							}
+						}).unwrap()
+						.with_function("send", move |new_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+							let send_data = match multivalue.pop_back() {
+								Some(data) => {
+									match data {
+										LuaValue::Table(data) => {
+											std_json::json_encode(new_luau, LuaValue::Table(data))?
+										},
+										LuaValue::String(data) => {
+											data.to_str()?.to_string()
+										},
+										other => {
+											return wrap_err!("channel:send() (in thread) expected string or json-serializable data, got: {:?}", other);
+										}
+									}
+								},
+								None => {
+									return wrap_err!("channel:send() (in thread) expected some json-serializable data, got nothing");
+								}
+							};
+							match child_sender.send(send_data) {
+								Ok(()) => Ok(LuaNil),
+								Err(err) => {
+									wrap_err!("channel:send() (in thread) Unable to send data: {}", err)
+								}
+							}
+						}).unwrap()
 						.build().unwrap()
 				).unwrap();
 
@@ -83,9 +139,64 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 			});
 			// no clue why this works, got it off copilot but yay fearful concurrency :p 
 			let arc_handle = Arc::new(Mutex::new(Some(handle)));
+
 			Ok(LuaValue::Table(
 				TableBuilder::create(luau)?
-					.with_function("join", move |_luau: &Lua, _value: LuaValue|{
+					.with_function("send", move |luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+						let value = match multivalue.pop_back() {
+							Some(value) => value,
+							None => {
+								return wrap_err!("thread.send expected value, got nothing");
+							}
+						};
+						let send_data: String = {
+							match value {
+								LuaValue::String(s) => {
+									s.to_str()?.to_string()
+								},
+								LuaValue::Table(data) => {
+									match std_json::json_encode(luau, LuaValue::Table(data)) {
+										Ok(json) => json,
+										Err(err) => {
+											return wrap_err!("thread.send unable to encode data to json: {}", err)
+										}
+									}
+								},
+								other => {
+									return wrap_err!("thread.send expected string or table (to stringify as json), got {:?}", other);
+								}
+							}
+						};
+						match sender.send(send_data) {
+							Ok(()) => {},
+							Err(err) => {
+								return wrap_err!("Some SendError occured: {}", err);
+							}
+						}
+						// println!("would send {}", send_data);
+						// handle
+						Ok(LuaNil)
+					})?
+					.with_function("read", move |luau: &Lua, _multivalue: LuaMultiValue| -> LuaValueResult {
+						match child_receiver.try_recv() {
+							Ok(data) => {
+								if data.starts_with("{") {
+									// it's some json we have to decode and return
+									let json_result = match std_json::json_decode(luau, data) {
+										Ok(value) => value,
+										Err(err) => {
+											return wrap_err!("channel:read(): error decoding json: {}", err);
+										}
+									};
+									Ok(json_result)
+								} else {
+									data.into_lua(luau)
+								}
+							},
+							Err(_) => Ok(LuaNil)
+						}
+					})?
+					.with_function("join", move |_luau: &Lua, _value: LuaValue| -> LuaValueResult {
 						let mut handle = arc_handle.lock().unwrap();
 						if let Some(handle) = handle.take() {
 							match handle.join() {
