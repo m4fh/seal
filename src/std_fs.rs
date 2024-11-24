@@ -104,9 +104,24 @@ pub fn fs_readfile(_: &Lua, file_path: String) -> LuaResult<String> {
             let err_message = match err.kind() {
                 io::ErrorKind::NotFound => format!("File not found: {}", file_path),
                 io::ErrorKind::PermissionDenied => format!("Permission denied: {}", file_path),
-                _ => todo!()
+                err => {
+                    format!("Weird fs.readfile error: {:?}", err)
+                }
             };
             Err(LuaError::external(err_message))
+        }
+    }
+}
+
+// Reads random file into an array of bytes
+pub fn fs_readbytes(luau: &Lua, file_path: String) -> LuaValueResult {
+    match fs::read(&file_path) {
+        Ok(bytes) => {
+            let newbuffy = luau.create_buffer(bytes)?;
+            Ok(LuaValue::Buffer(newbuffy))
+        },
+        Err(err) => {
+            wrap_err!("fs.readbytes: error reading file: {}", err)
         }
     }
 }
@@ -452,6 +467,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("entries", fs_entries)?
         .with_function("find", fs_find)?
         .with_function("create", fs_create)?
+        .with_function("readbytes", fs_readbytes)?
         .build_readonly()?;
 
     Ok(std_fs)
