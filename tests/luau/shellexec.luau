@@ -1,3 +1,4 @@
 local shex = require("@std/shellexec")
 
-shex("ls -l")
+shex("ls")
+shex("cd ./typedefs; code .")

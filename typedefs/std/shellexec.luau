@@ -14,7 +14,7 @@ This can be useful for shell scripting purposes, but in 'real' programs please c
 ### Usage:
 ```luau
 local shex = require("@std/shellexec")
-shex("cd ./somewhere")
+shex("cd ./somewhere; pwd")
 ```
 As this uses 'unsafe' libc to execute a C command, it is not recommended for general-purpose use outside seal-as-a-shell-script-alternative.
 ]=]

@@ -25,8 +25,9 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
 			"@std/shellexec" => Ok(function(luau.create_function(std_shellexec::shellexec)?)),
 
             "@std/net" => Ok(table(std_net::create(luau)?)),
+			"@std/net/server" => Ok(table(std_net_serve::create(luau)?)),
             "@std/json" => Ok(table(std_json::create(luau)?)),
-			
+
 			"@std/thread" => Ok(table(std_thread::create(luau)?)),
             other => {
                 wrap_err!("program required an unexpected standard library: {}", other)
