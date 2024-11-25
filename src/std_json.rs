@@ -1,7 +1,7 @@
 use std::fs;
 
 use mlua::prelude::*;
-use crate::{std_fs, table_helpers::TableBuilder, wrap_err, colors};
+use crate::{std_fs, table_helpers::TableBuilder, wrap_err, colors, LuaValueResult};
 
 pub fn json_encode(_luau: &Lua, table: LuaValue) -> LuaResult<String> {
     match table {
@@ -14,7 +14,7 @@ pub fn json_encode(_luau: &Lua, table: LuaValue) -> LuaResult<String> {
     }
 }
 
-fn parse_fix_numbers_rec(luau: &Lua, t: LuaTable) -> LuaResult<LuaValue> {
+fn parse_fix_numbers_rec(luau: &Lua, t: LuaTable) -> LuaValueResult {
     let tonumber: LuaFunction = luau.globals().get("tonumber")?;
     for pair in t.pairs::<LuaValue, LuaValue>() {
         let (k, v) = pair?;
@@ -48,7 +48,7 @@ fn parse_fix_numbers_rec(luau: &Lua, t: LuaTable) -> LuaResult<LuaValue> {
     Ok(LuaValue::Table(t))
 }
 
-pub fn json_decode(luau: &Lua, json: String) -> LuaResult<LuaValue> {
+pub fn json_decode(luau: &Lua, json: String) -> LuaValueResult {
     let json_result: serde_json::Value = match serde_json::from_str(&json) {
         Ok(json) => json,
         Err(err) => {
@@ -63,12 +63,12 @@ pub fn json_decode(luau: &Lua, json: String) -> LuaResult<LuaValue> {
     Ok(luau_result)
 }
 
-fn json_readfile(luau: &Lua, file_path: String) -> LuaResult<LuaValue> {
+fn json_readfile(luau: &Lua, file_path: LuaValue) -> LuaValueResult {
     let file_content = std_fs::fs_readfile(luau, file_path)?;
-    json_decode(luau, file_content)
+    json_decode(luau, file_content.to_string()?)
 }
 
-fn json_writefile(luau: &Lua, json_write_options: LuaValue) -> LuaResult<LuaValue> {
+fn json_writefile(luau: &Lua, json_write_options: LuaValue) -> LuaValueResult {
     match json_write_options {
         LuaValue::Table(options) => {
             let file_path: LuaValue = options.get("path")?;

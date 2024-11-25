@@ -97,20 +97,32 @@ fn fs_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
     }
 }
 
-pub fn fs_readfile(_: &Lua, file_path: String) -> LuaResult<String> {
-    match fs::read_to_string(&file_path) {
-        Ok(content) => Ok(content),
-        Err(err) => {
-            let err_message = match err.kind() {
-                io::ErrorKind::NotFound => format!("File not found: {}", file_path),
-                io::ErrorKind::PermissionDenied => format!("Permission denied: {}", file_path),
-                err => {
-                    format!("Weird fs.readfile error: {:?}", err)
+pub fn fs_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let bytes = {
+        match value {
+            LuaValue::String(file_path) => {
+                let file_path = file_path.to_string_lossy();
+                match fs::read(&file_path) {
+                    Ok(bytes) => bytes,
+                    Err(err) => {
+                        match err.kind() {
+                            io::ErrorKind::NotFound => 
+                                return wrap_err!("fs.readfile: File not found: {}", file_path),
+                            io::ErrorKind::PermissionDenied => 
+                                return wrap_err!("fs.readfile: Permission denied: {}", file_path),
+                            other => {
+                                return wrap_err!("fs.readfile: Error reading file: {}", other);
+                            }
+                        }
+                    }
                 }
-            };
-            Err(LuaError::external(err_message))
+            },
+            other => {
+                return wrap_err!("fs.readfile expected string, got: {:#?}", other);
+            }
         }
-    }
+    };
+    Ok(LuaValue::String(luau.create_string(bytes)?)    )
 }
 
 // Reads random file into an array of bytes
