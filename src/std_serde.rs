@@ -2,6 +2,7 @@ use crate::{LuaValueResult, table_helpers::TableBuilder, colors, std_json, std_f
 use mlua::prelude::*;
 use toml::Value as TomlValue;
 use serde_yaml::Value as YamlValue;
+use serde_json_lenient as serde_json;
 
 fn serde_yaml_decode(luau: &Lua, value: LuaValue) -> LuaValueResult {
     match value {

@@ -22,10 +22,14 @@ type JsonWritefileOptions = {
 ```
 ]=]
 type json = {
+	--- encodes json with newlines, readable
 	encode: (t: any) -> string,
+	--- encodes json data without newlines, etc.
+	encode_data: (t: any) -> string,
 	decode: (json: string) -> any,
 	readfile: (path: string) -> string,
-	writefile: (WriteOptions: JsonWritefileOptions) -> ()
+	writefile: (WriteOptions: JsonWritefileOptions) -> (),
+	writefile_data: (WriteOptions: JsonWritefileOptions) -> ()
 }
 
 type JsonWritefileOptions = {

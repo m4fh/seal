@@ -25,6 +25,9 @@ mod globals;
 
 use crate::std_io_colors as colors;
 
+use include_dir::{include_dir, Dir};
+const TYPEDEFS_DIR: Dir = include_dir!("typedefs");
+
 type LuaValueResult = LuaResult<LuaValue>;
 
 fn main() -> LuaResult<()> {
@@ -39,7 +42,38 @@ fn main() -> LuaResult<()> {
         println!("help");
         return Ok(());
     }
+    
+    if first_arg == "setup" {
+        let cwd = std::env::current_dir().unwrap();
 
+        let typedefs_dir = cwd.join("typedefs");
+        if let Err(err) = fs::create_dir(&typedefs_dir) {
+            return wrap_err!("seal setup - error creating directory: {}", err);
+        }
+
+        match TYPEDEFS_DIR.extract(typedefs_dir) {
+            Ok(()) => {
+                println!("seal setup typedefs in your current directory!");
+            },
+            Err(err) => {
+                return wrap_err!("seal setup - error extracting typedefs directory: {}", err);
+            }
+        };
+
+        let settings_setup = include_str!("./settings_setup.luau");
+        let temp_luau = Lua::new();
+        globals::set_globals(&temp_luau)?;
+        match temp_luau.load(settings_setup).exec() {
+            Ok(_) => {
+                println!("seal setup .vscode definitions in your current directory!");
+                return Ok(());
+            },
+            Err(err) => {
+                panic!("{}", err)
+            }
+        }
+    }
+    
     if args.len() == 3 && args[2] == "--debug" {
         // don't mess with panic formatting
     } else {
