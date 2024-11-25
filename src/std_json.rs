@@ -33,7 +33,7 @@ fn parse_fix_numbers_rec(luau: &Lua, t: LuaTable) -> LuaValueResult {
         let (k, v) = pair?;
         match v {
             LuaValue::Table(v) => {
-                let has_fixable_n: LuaValue = v.get("$serde_json::private::Number")?;
+                let has_fixable_n: LuaValue = v.get("$serde_json_lenient::private::Number")?;
                 match has_fixable_n {
                     LuaValue::String(s) => {
                         let converted_n = tonumber.call::<LuaValue>(s)?;
