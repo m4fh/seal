@@ -19,6 +19,7 @@ mod std_net;
 mod std_thread;
 mod std_shellexec;
 mod std_net_serve;
+mod std_serde;
 
 mod globals;
 

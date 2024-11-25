@@ -148,13 +148,13 @@ fn handle_client(stream: &mut TcpStream, handler_function: LuaFunction, luau: &L
                 Ok(response_type) => {
                     if let LuaValue::String(response) = response_type {
                         let response = response.to_string_lossy();
-                        match response.as_str() {
-                            "Text" => "text/plain".to_string(),
-                            "HTML" => "text/html".to_string(),
-                            "JSON" => "application/json".to_string(),
-                            "XML"  => "application/xml".to_string(),
-                            "CSS"  => "text/css".to_string(),
-                            "Binary" => "application/octet-stream".to_string(),
+                        match response.to_lowercase().as_str() {
+                            "text" => "text/plain; charset=utf-8".to_string(),
+                            "html" => "text/html; charset=utf-8".to_string(),
+                            "json" => "application/json".to_string(),
+                            "xml"  => "application/xml".to_string(),
+                            "css"  => "text/css".to_string(),
+                            "binary" => "application/octet-stream".to_string(),
                             other => other.to_string()
                         }
                     } else {

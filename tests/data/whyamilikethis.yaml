@@ -1,0 +1,16 @@
+am:
+  $serde_json::private::Number: '2'
+are:
+  you:
+    too:
+      $serde_json::private::Number: '1'
+i_like:
+  $serde_json::private::Number: '3'
+this:
+- $serde_json::private::Number: '1'
+- $serde_json::private::Number: '2'
+- $serde_json::private::Number: '3'
+- $serde_json::private::Number: '4'
+- hi
+why:
+  $serde_json::private::Number: '1'
