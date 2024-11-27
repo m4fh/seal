@@ -12,16 +12,17 @@ if entry then
     print("Cargo.toml found")
 end
 
-local et = fs.find({directory = "./src"})
-print(et)
+local _src = fs.find({directory = "./src"})
 
 local ninexists = fs.find { directory = "hi" }
 assert(ninexists == nil)
 
 assert(fs.find{file = "Cargo.toml"} ~= nil)
 
-local s, e = pcall(function()
-		fs.find{directory = "./src/main.rs"}
-end)
-
-assert(s == false and tostring(e):match("not a directory"))
+-- handle cases
+do
+	try(function()
+		fs.entries("")
+		return nil
+	end):expect_err("No such file or directory")
+end

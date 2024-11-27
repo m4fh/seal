@@ -2,7 +2,6 @@
 local std = require("@std")
 local fs = require("@std/fs")
 
-local vscode_dir = std.fs.find { directory = ".vscode" } :: fs.DirectoryEntry?
 local new_settings = std.json.decode([[
 	{
 		"luau-lsp.require.directoryAliases": {
@@ -19,11 +18,13 @@ local new_settings = std.json.decode([[
 	}
 ]])
 
+local vscode_dir = std.fs.find { directory = ".vscode" } :: fs.DirectoryEntry?
 if not vscode_dir then
 	fs.create { directory = ".vscode" }
 end
 
 local vscode_dir = fs.find { directory = ".vscode" } :: fs.DirectoryEntry
+
 local settings_json = vscode_dir:find { file = "settings.json" } :: fs.FileEntry
 if settings_json then
 	local current_settings = std.json.decode(settings_json:read())
@@ -65,6 +66,23 @@ if not spec_dir then
 		file = {
 			name = "main.spec.luau",
 			content = "-- insert tests here, if you want."
+		}
+	}
+end
+
+local default_luaurc = {
+	languageMode = "strict",
+	aliases = {
+		std = "./typedefs/std/"
+	}
+}
+
+local luaurc = fs.find { file = ".luaurc" }
+if not luaurc then
+	fs.create {
+		file = {
+			name = ".luaurc",
+			content = std.json.encode(default_luaurc) :: string
 		}
 	}
 end

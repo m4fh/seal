@@ -4,7 +4,8 @@
 use regex::Regex;
 use mlua::prelude::*;
 
-use crate::{std_io_colors::*, table_helpers::TableBuilder};
+use crate::{std_io_colors::*, table_helpers::TableBuilder, wrap_err, LuaValueResult};
+use crate::std_io_colors as colors;
 
 fn process_raw_values(value: LuaValue, result: &mut String, depth: usize) -> LuaResult<()> {
 	let left_padding = " ".repeat(2 * depth);
@@ -184,9 +185,28 @@ pub fn prettify_output(_: &Lua, value: LuaValue) -> LuaResult<String> {
 	Ok(result)
 }
 
+pub fn strip_newlines_and_colors(input: &str) -> String {
+    let re_colors = Regex::new(r"\x1b\[[0-9;]*m").unwrap();
+    let without_colors = re_colors.replace_all(input, "");
+    without_colors.to_string()
+}
+
+fn output_unformat(luau: &Lua, value: LuaValue) -> LuaValueResult {
+	let input = match value {
+		LuaValue::String(i) => i.to_string_lossy(),
+		other => {
+			return wrap_err!("expected string to strip formatting of, got: {:#?}", other)
+		}
+	};
+	Ok(LuaValue::String(
+		luau.create_string(input.as_str())?
+	))
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
 	TableBuilder::create(luau)?
 		.with_function("format", prettify_output)?
+		.with_function("unformat", output_unformat)?
 		.with_function("print-and-return", pretty_print_and_return)?
 		.with_function("debug-print", debug_print)?
 		.with_function("debug-format", format_debug)?

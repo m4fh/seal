@@ -45,7 +45,7 @@ fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let metadata = match fs::metadata(&directory_path) {
         Ok(metadata) => metadata,
         Err(err) => {
-            return wrap_err!("fs.entries: error reading directory_path's metadata: {:#?}", err);
+            return wrap_err!("fs.entries: error reading directory_path's metadata: {}", err);
         }
     };
 
@@ -68,7 +68,7 @@ fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
                 .build_readonly()?
         ))
     } else {
-        wrap_err!("fs.entries: expected directory, but path passed ({}) is actually a file", directory_path)
+        wrap_err!("fs.entries: expected directory, but path ({}) is actually a file", directory_path)
     }
 }
 
@@ -105,21 +105,39 @@ pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult
     let entry_path: String = match multivalue.pop_front() {
         Some(LuaValue::String(file_path)) => file_path.to_string_lossy(),
         Some(other) => 
-            return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected file_path to be a string, got: {:#?}", other),
+            return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected file path to be a string, got: {:#?}", other),
         None => {
             return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected to be called with self.");
         }
     };
 
     let start = match multivalue.pop_front() {
-        Some(LuaValue::Integer(n)) => Some(n),
+        Some(LuaValue::Integer(n)) => {
+            if n >= 0 {
+                Some(n)
+            } else {
+                return wrap_err!("fs.readbytes: start byte s must be >= 0!!");
+            }
+        },
         Some(other) => return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected s to be a number, got: {:#?}", other),
         None => None,
     };
     let finish = match multivalue.pop_front() {
-        Some(LuaValue::Integer(n)) => Some(n),
+        Some(LuaValue::Integer(n)) => {
+            if n > 0 { 
+                Some(n)
+            } else {
+                return wrap_err!("fs.readbytes: final byte f must be positive!!");
+            }
+        },
         Some(other) => return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected f to be a number, got: {:#?}", other),
-        None => None,
+        None => {
+            if start.is_some() {
+                return wrap_err!("fs.readbytes(file_path, s: number, f: number): missing final byte f; if s is provided then f must also be provided");
+            } else {
+                None
+            }
+        },
     };
 
     if let Some(start) = start {

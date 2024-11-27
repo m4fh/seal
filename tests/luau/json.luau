@@ -50,8 +50,6 @@ local json_result = json.decode(got_data) :: CatOwnerData
 print(os.clock() - t0)
 print(json_result)
 
-local fs = require("@std/fs")
-
 json.writefile {
 	path = "./tests/data/cats.json",
 	content = json_result,

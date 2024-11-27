@@ -31,4 +31,5 @@ declare function try(protected_f: () -> any): {
 		err: (err: any?) -> any?,
 	}) -> any?,
 	unwrap: (self: any, default: any?) -> any,
+	expect_err: (self: any, handler: string | (err: unknown) -> any) -> any,
 }

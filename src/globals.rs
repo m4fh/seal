@@ -165,6 +165,11 @@ fn globals_try(luau: &Lua, f: LuaValue) -> LuaValueResult {
                             }
                         }
                     )?)?;
+                    result_table.raw_set("expect_err", luau.create_function(
+                        |_luau: &Lua, value: LuaValue| -> LuaValueResult {
+                            wrap_err!("Error expected, but the function call didn't error. Instead, we got: {:#?}", value)
+                        }
+                    )?)?;
                 } else {
                     result_table.set("ok", false)?;
                     result_table.set("err", result.clone())?;
@@ -203,7 +208,7 @@ fn globals_try(luau: &Lua, f: LuaValue) -> LuaValueResult {
                                             Ok(default_value)
                                         },
                                         None => {
-                                            wrap_err!("Attempted to :unwrap() a TryResult without a default value! Error: {}", err_result.to_string())
+                                            wrap_err!("Attempted to :unwrap() a TryResult without a default value! Error: \n  {}", err_result.to_string())
                                         }
                                     }
                                 },
@@ -212,6 +217,52 @@ fn globals_try(luau: &Lua, f: LuaValue) -> LuaValueResult {
                                 },
                                 other => {
                                     wrap_err!("TryResult:unwrap() wtf is self?: {:?}", other)
+                                }
+                            }
+                        }
+                    )?)?;
+                    result_table.set("expect_err", luau.create_function(
+                        move |luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+                            let _s = multivalue.pop_front();
+                            let handler = match multivalue.pop_front() {
+                                Some(handler) => handler,
+                                None => LuaValue::Boolean(true),
+                            };
+
+                            match handler {
+                                LuaValue::Function(handler) => {
+                                    // call the handler function and return whatever it returns
+                                    Ok(handler.call::<LuaValue>(result.clone())?)
+                                },
+                                LuaValue::String(error_matcher) => {
+                                    // match error_matcher against the error we got using luau's string.match
+                                    let string_lib: LuaTable = luau.globals().raw_get("string")?;
+                                    let string_match: LuaFunction = string_lib.raw_get("match")?;
+
+                                    // let global_tostring: LuaFunction = luau.globals().raw_get("tostring")?;
+                                    // let stringified_err: LuaValue = global_tostring.call(result.clone())?;
+                                    let stringified_err = std_io_output::strip_newlines_and_colors(&result.to_string()?);
+
+                                    let match_args_vec: Vec<LuaValue> = vec!(
+                                        luau.create_string(&stringified_err)?.into_lua(luau)?, 
+                                        error_matcher.to_owned().into_lua(luau)?
+                                    );
+                            
+                                    let match_args = LuaMultiValue::from_vec(match_args_vec);
+
+                                    let does_match: bool = match string_match.call::<LuaValue>(match_args)? {
+                                        LuaValue::String(_s) => true,
+                                        _other => false,
+                                    };
+
+                                    if does_match {
+                                        Ok(LuaValue::Boolean(true))
+                                    } else {
+                                        wrap_err!("Error did not match the expected error! Expected err to string.match {:#?}, got err:\n  {}", error_matcher, stringified_err)
+                                    }
+                                },
+                                other => {
+                                    wrap_err!("Expected error handler to be a function or a string (to string.match an error against), got: {:#?}", other)
                                 }
                             }
                         }
