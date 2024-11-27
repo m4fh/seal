@@ -34,67 +34,41 @@ fn fs_listdir(luau: &Lua, path: String) -> LuaResult<LuaTable> {
     }
 }
 
-fn fs_entries(luau: &Lua, directory_path: String) -> LuaResult<LuaTable> {
-    match fs::metadata(&directory_path) {
-        Ok(t) => {
-            if t.is_dir() {
-                let entries_dictionary = luau.create_table()?;
-                let grab_file_ext_re = Regex::new(r"\.([a-zA-Z0-9]+)$").unwrap();
-                for entry in fs::read_dir(&directory_path)? {
-                    let entry = entry?;
-                    if let Some(entry_path) = entry.path().to_str() {
-                        let entry_table = luau.create_table()?;
-                        let entry_metadata = entry.metadata().unwrap();
-                        if entry_metadata.is_dir() {
-                            entry_table.set("type", "Directory")?;
-                            entry_table.set("path", entry_path)?;
-                            entry_table.set("entries", luau.create_function({
-                                let entry_path = entry_path.to_string();
-                                move | luau, _s: LuaMultiValue | {
-                                    fs_entries(luau, entry_path.clone())
-                                }})?)?;
-                            entry_table.set("list", luau.create_function({
-                                let entry_path = entry_path.to_string();
-                                move | luau, _s: LuaMultiValue | {
-                                    fs_listdir(luau, entry_path.clone())
-                                }
-                            })?)?;
-                        } else {
-                            let extension = {
-                                if let Some(captures) = grab_file_ext_re.captures(entry_path) {
-                                    String::from(&captures[1])
-                                } else {
-                                    String::from("")
-                                }
-                            };
-                            entry_table.set("type", "File")?;
-                            entry_table.set("path", entry_path)?;
-                            entry_table.set("extension", extension)?;
-                            entry_table.set("read", luau.create_function({
-                                let entry_path = entry_path.to_string();
-                                move | _luau, _s: LuaMultiValue | {
-                                    Ok(fs::read_to_string(entry_path.clone())?)
-                                }
-                            })?)?;
-                        }
-                        entries_dictionary.set(entry_path, entry_table)?;
-                        // entries_dictionary.push(entry_path)?;
-                    }
-                };
-                Ok(entries_dictionary)
-            } else {
-                wrap_err!("fs.entries: Attempt to list files/entries of a path, but path is a file itself!")
-                // Err(LuaError::external("Attempt to list files/entries of path, but path is a file itself"))
-            }
-        },
-        Err(err) => {
-            let err_message = match err.kind() {
-                io::ErrorKind::NotFound => format!("Invalid directory: \"{}\"", directory_path),
-                io::ErrorKind::PermissionDenied => format!("Permission denied: {}", directory_path),
-                _ => todo!()
-            };
-            Err(LuaError::runtime(err_message))
+fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let directory_path = match value {
+        LuaValue::String(directory_path) => directory_path.to_string_lossy(),
+        other => {
+            return wrap_err!("fs.entries(directory_path: string) expected directory_path to be string, got: {:#?}", other);
         }
+    };
+
+    let metadata = match fs::metadata(&directory_path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            return wrap_err!("fs.entries: error reading directory_path's metadata: {:#?}", err);
+        }
+    };
+
+    if metadata.is_dir() {
+        let mut entry_vec: Vec<(String, LuaValue)> = Vec::new();
+        for entry in fs::read_dir(directory_path)? {
+            let entry = entry?;
+            let entry_path = entry.path()
+                .to_str()
+                .unwrap()
+                .to_string();
+            entry_vec.push((entry_path.to_owned(), LuaValue::Table(
+                create_entry_table(luau, &entry_path)?
+            )));
+            
+        };
+        Ok(LuaValue::Table(
+            TableBuilder::create(luau)?
+                .with_values(entry_vec)?
+                .build_readonly()?
+        ))
+    } else {
+        wrap_err!("fs.entries: expected directory, but path passed ({}) is actually a file", directory_path)
     }
 }
 
@@ -253,8 +227,9 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
         entry_table.set("path", entry_path)?;
         entry_table.set("entries", luau.create_function({
             let entry_path = entry_path.to_string();
+            let entry_path_but_in_luau = entry_path.into_lua(luau)?;
             move | luau, _s: LuaMultiValue | {
-                fs_entries(luau, entry_path.clone())
+                fs_entries(luau, entry_path_but_in_luau.to_owned())
             }
         })?)?;
         entry_table.set("list", luau.create_function({

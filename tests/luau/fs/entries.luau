@@ -1,6 +1,4 @@
---!strict
 local fs = require("@std/fs")
-local prettify = require("@std/io/format")
 
 for path, entry in fs.entries(".") do
 	if entry.type == "File" then
