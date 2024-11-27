@@ -94,6 +94,7 @@ print(`{colors.red("oh no, anyways!:")}: {format(some_table)}`)
 local env = require("@std/env")
 
 for _, arg in env.args do
+    print(arg)
 end
 ```
 
@@ -110,7 +111,7 @@ Although this style of thread management is definitely less ergonomic than a `ta
 local thread = require("@std/thread")
 
 local handle = thread.spawn {
-    path = "./child.luau"
+    path = "./child.luau",
     data = {
         url = "https://example.net",
     }
