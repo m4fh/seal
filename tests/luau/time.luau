@@ -1,7 +1,6 @@
 local time = require("@std/time")
-local datetime = time.datetime
+local datetime = require("@std/time/datetime")
 local thread = require("@std/thread") -- thread.sleep does time too
--- assert(datetime == require("@std/time/datetime"))
 
 local now = datetime.now()
 local common_formats = datetime.common_formats
@@ -12,7 +11,7 @@ local function nowfmt(format_name: string, format: string)
 	return `{format_name}: {now:format(format)}`
 end
 
-for format_name, format_string in common_formats do 
+for format_name, format_string in common_formats :: { [string]: string } do 
 	print(nowfmt(format_name, format_string))
 end
 

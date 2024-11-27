@@ -1,8 +1,25 @@
 local net = {}
 
+export type RequestConfig = {
+	method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+	url: string,
+	headers: { [string]: string }?,
+	params: { [string]: string }?,
+}
+
+export type GetConfig = {
+	url: string,
+	headers: { [string]: string }?,
+	--- Query parameters to append to the url string
+	params: {
+		[string]: string,
+	}?
+}
+
 export type NetResponse = ({
 	ok: true,
 	body: string,
+	--- decodes body to table, errors if body is invalid json or otherwise cannot be converted to table
 	decode: (self: NetResponse) -> { [any]: any }
 } | {
 	ok: false,
@@ -12,25 +29,30 @@ export type NetResponse = ({
 	unwrap: (self: NetResponse, default: { [any]: any }?) -> { [any]: any }
 }
 
-export type GetConfig = {
-	url: string,
-	headers: string?,
-	--- Query parameters to append to the url string
-	params: {
-		[string]: string,
-	}?
-}
-
 --[=[
 Makes an HTTP `GET` request.
 
-## Usage:
+## Usage
 ```lua
-local response = net.get("https://catfact.ninja/fact")
+local response = net.get({
+	url = "https://catfact.ninja/fact",
+})
 if response.ok then
 	local raw_body = response.body
 	local decoded_json_body = response:decode()
 end
+
+-- or with more features:
+
+local cats = net.get {
+	url = "my.cats.net/get",
+	headers = {
+		Authorization = someauth
+	},
+	params = {
+		name = "Nanuk",
+	},
+}:unwrap()
 ```
 ]=]
 function net.get(url: GetConfig): NetResponse
@@ -41,7 +63,7 @@ export type PostConfig = {
 	url: string,
 	headers: {
 		[string]: string,
-	},
+	}?,
 	body: string | {
 		[any]: any,
 	},
@@ -66,6 +88,26 @@ local response = net.post {
 ```#
 ]=]
 function net.post(config: PostConfig): NetResponse
+	return nil :: any
+end
+
+--[=[
+Sends an HTTP request:
+
+## Usage
+```lua
+local response = net.request({
+	method = "PUT",
+	url = "https://somewhere.net/api/put",
+	body = somebody,
+})
+
+if response.ok then
+	print(response:decode())
+end
+```
+]=]
+function net.request(config: RequestConfig): NetResponse
 	return nil :: any
 end
 

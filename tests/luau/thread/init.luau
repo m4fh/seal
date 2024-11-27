@@ -1,3 +1,4 @@
+--!nonstrict
 local thread = require("@std/thread")
 local time = require("@std/time")
 

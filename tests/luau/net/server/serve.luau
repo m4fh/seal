@@ -1,6 +1,5 @@
 local server = require("@std/net/server")
 local fs = require("@std/fs")
-local base64 = require("@std/serde/base64")
 local json = require("@std/json")
 
 server.serve {

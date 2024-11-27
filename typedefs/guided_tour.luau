@@ -1,3 +1,4 @@
+--!nonstrict
 --!nolint LocalUnused
 --!nolint ImportUnused
 

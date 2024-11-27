@@ -60,7 +60,7 @@ type fs = {
 	--- reads a file to string
 	readfile: (path: string) -> string,
 	--- reads a file to buffer of bytes
-	readbytes: (path: string) -> buffer,
+	readbytes: (path: string, s: number?, f: number?) -> buffer,
 	--- saves/writes a file given WriteFileOptions: {path: string, content: string, overwrite: boolean?}
 	writefile: (WriteFileOptions) -> (),
 	--- finds an Entry if the requested file/directory exists, else returns nil
@@ -100,6 +100,9 @@ export type FileEntry = {
 	type: "File",
 	path: string,
 	extension: string,
+	size: number,
+	readbytes: (self: FileEntry, s: number?, f: number?) -> buffer,
+	readlines: (self: FileEntry, handler: (line: string, index: number) -> ()) -> nil,
 	read: (self: FileEntry) -> string,
 	remove: (self: FileEntry) -> (),
 }
@@ -116,9 +119,9 @@ end
 --[=[
 Reads a file to a buffer of bytes, relative to the current working directory.
 
-Errors if `path` doesn't exist on the file system or if you don't have access to access that path.
+Errors if `path` doesn't exist on the file system or if you don't have permission to access that path.
 ]=]
-function fs.readbytes(path: string): buffer
+function fs.readbytes(path: string, s: number?, e: number?): buffer
 	return nil :: any
 end
 

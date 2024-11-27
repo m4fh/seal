@@ -1,9 +1,10 @@
+--!nonstrict
 --!nolint LocalShadow
 local thread = require("@std/thread")
 local net = require("@std/net")
 local format = require("@std/io/format")
 
-local urls = {
+local urls: {string} = {
 	"https://meow.com",
 	"https://google.com",
 	"https://en.wikipedia.org/wiki/Cat",

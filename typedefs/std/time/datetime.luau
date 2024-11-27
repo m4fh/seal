@@ -14,14 +14,22 @@ local datetime = {
     }
 }
 
-type DateTime = {
+type DateTimeLocal = {
 	unix_timestamp: number,
 	--- format a DateTime with Rust chrono format string
-	format: (self: DateTime, format: string) -> string,
+	format: (self: DateTimeLocal, format: string) -> string,
 }
 
+type DateTimeUtc = {
+	unix_timestamp: number,
+	--- format a DateTime with Rust chrono format string
+	format_utc: (self: DateTimeUtc, format: string) -> string,
+	format_local: (self: DateTimeUtc, format: string) -> string,
+}
+
+
 --[=[
-Returns a table representation of a `chrono::Local` `DateTime`.
+Returns handle to a `chrono::Local` `DateTime`.
 
 ## Usage
 ```luau
@@ -30,8 +38,12 @@ print(`the time is now {datetime.now():format(datetime.common_formats["HH:MM (AM
 print(`in unix, this means {datetime.now().unix_timestamp}`)
 ```
 ]=]
-function datetime.now(): DateTime
+function datetime.now(): DateTimeLocal
 	return nil :: any
+end
+
+function datetime.from(unix_timestamp: number): DateTimeUtc
+    return nil :: any
 end
 
 return datetime

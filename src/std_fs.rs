@@ -1,4 +1,5 @@
 use mlua::prelude::*;
+use std::io::{BufRead, Read, Seek};
 use std::{fs, io};
 use io::Write;
 
@@ -126,15 +127,66 @@ pub fn fs_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
 }
 
 // Reads random file into an array of bytes
-pub fn fs_readbytes(luau: &Lua, file_path: String) -> LuaValueResult {
-    match fs::read(&file_path) {
-        Ok(bytes) => {
-            let newbuffy = luau.create_buffer(bytes)?;
-            Ok(LuaValue::Buffer(newbuffy))
-        },
-        Err(err) => {
-            wrap_err!("fs.readbytes: error reading file: {}", err)
+pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let entry_path: String = match multivalue.pop_front() {
+        Some(LuaValue::String(file_path)) => file_path.to_string_lossy(),
+        Some(other) => 
+            return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected file_path to be a string, got: {:#?}", other),
+        None => {
+            return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected to be called with self.");
         }
+    };
+
+    let start = match multivalue.pop_front() {
+        Some(LuaValue::Integer(n)) => Some(n),
+        Some(other) => return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected s to be a number, got: {:#?}", other),
+        None => None,
+    };
+    let finish = match multivalue.pop_front() {
+        Some(LuaValue::Integer(n)) => Some(n),
+        Some(other) => return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected f to be a number, got: {:#?}", other),
+        None => None,
+    };
+
+    if let Some(start) = start {
+        // read specific section of file
+        let finish = finish.unwrap();
+
+        let mut file = match fs::File::open(&entry_path) {
+            Ok(f) => f,
+            Err(err) => {
+                return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) error reading path: {}", err);
+            }
+        };
+    
+        // Calculate the number of bytes to read
+        let num_bytes = (finish - start) as usize;
+        let mut buffer = vec![0; num_bytes];
+    
+        // Seek to the start position
+        if let Err(err) = file.seek(std::io::SeekFrom::Start(start as u64)) {
+            return wrap_err!("fs.readbytes: error seeking to start position: {}", err);
+        }
+    
+        // Read the requested bytes
+        match file.read_exact(&mut buffer) {
+            Ok(_) => {
+                // let lua_string = luau.create_string(&buffer)?;
+                let buffy = luau.create_buffer(&buffer)?;
+                Ok(LuaValue::Buffer(buffy))
+            },
+            Err(err) => wrap_err!("fs.readbytes: error reading bytes: {}", err),
+        }
+    } else {
+        // read the whole thing
+        let bytes = match fs::read(&entry_path) {
+            Ok(bytes) => bytes,
+            Err(err) => {
+                return wrap_err!("fs.readbytes: failed to read file with error: {}", err);
+            }
+        };
+        let buffy = luau.create_buffer(bytes)?;
+        Ok(LuaValue::Buffer(buffy))
     }
 }
 
@@ -196,6 +248,7 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
     let metadata = fs::metadata(entry_path)?;
     let entry_table = luau.create_table()?;
     if metadata.is_dir() {
+        // TODO: refactor
         entry_table.set("type", "Directory")?;
         entry_table.set("path", entry_path)?;
         entry_table.set("entries", luau.create_function({
@@ -272,6 +325,7 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
                 fs_create(luau, prepended_entry?)
             }
         })?)?;
+        Ok(entry_table)
     } else {
         let extension = {
             if let Some(captures) = grab_file_ext_re.captures(entry_path) {
@@ -281,23 +335,92 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
             }
         };
 
-        entry_table.set("type", "File")?;
-        entry_table.set("path", entry_path)?;
-        entry_table.set("extension", extension)?;
-        entry_table.set("read", luau.create_function({
-            let entry_path = entry_path.to_string();
-            move | _luau, _s: LuaMultiValue | {
-                Ok(fs::read_to_string(entry_path.clone())?)
-            }
-        })?)?;
-        entry_table.set("remove", luau.create_function({
-            let entry_path = entry_path.to_string();
-            move | _luau, _s: LuaMultiValue | {
-                Ok(fs::remove_file(entry_path.clone())?)
-            }
-        })?)?;
+        TableBuilder::create(luau)?
+            .with_value("type", "File")?
+            .with_value("size", metadata.len())?
+            .with_value("path", entry_path)?
+            .with_value("extension", extension)?
+            .with_function("read", {
+                let entry_path = entry_path.to_string();
+                move | _luau, _s: LuaMultiValue | {
+                    Ok(fs::read_to_string(entry_path.clone())?)
+                }
+            })?
+            .with_function("readbytes", {
+                let entry_path = entry_path.to_string();
+                move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                    let _handle = match multivalue.pop_front() {
+                        Some(value) => value,
+                        None => {
+                            return wrap_err!("FileEntry:readbytes(s, f) expected to be called with self.");
+                        }
+                    };
+                    let entry_path_luau = luau.create_string(&entry_path)?;
+                    multivalue.push_front(LuaValue::String(entry_path_luau));
+                    match fs_readbytes(luau, multivalue) {
+                        Ok(v) => Ok(v),
+                        Err(err) => {
+                            wrap_err!(err.to_string().replace("fs.readbytes(file_path,", "FileEntry:readbytes("))
+                        }
+                    }
+                }   
+            })?
+            .with_function("readlines", {
+                let entry_path = entry_path.to_string();
+                move | luau, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                    let file = match fs::File::open(&entry_path) {
+                        Ok(file) => file,
+                        Err(err) =>{
+                            return wrap_err!("FileEntry:readlines: error opening file: {}", err);
+                        }
+                    };
+                    
+                    let reader = io::BufReader::new(file);
+                    match multivalue.pop_back() {
+                        Some(LuaValue::Function(handler_function)) => {
+                            for (index, line) in reader.lines().enumerate() {
+                                match line {
+                                    Ok(line) => {
+                                        let line = line.into_lua(luau)?;
+                                        let index = LuaValue::Integer((index + 1) as i32);
+                                        let args = LuaMultiValue::from_vec(vec![line, index]);
+                                        match handler_function.call::<Option<LuaString>>(args) {
+                                            Ok(Some(s)) => {
+                                                match s.to_string_lossy().as_str() {
+                                                    "break" => break,
+                                                    _other => continue,
+                                                }
+                                            },
+                                            Ok(None) => continue,
+                                            Err(err) => {
+                                                return wrap_err!("error calling readlines callback: {}", err);
+                                            }
+                                        }
+                                    },
+                                    Err(err) => {
+                                        return wrap_err!("error reading lines: {}", err);
+                                    }
+                                }
+                            }
+                            Ok(LuaNil)
+                        },
+                        Some(other) => {
+                            wrap_err!("expected function, got: {:#?}", other)
+                        },
+                        None => {
+                            wrap_err!("expected function, got: nothing")
+                        }
+                    }
+                }
+            })?
+            .with_function("remove", {
+                let entry_path = entry_path.to_string();
+                move | _luau, _s: LuaMultiValue | {
+                    Ok(fs::remove_file(entry_path.clone())?)
+                }
+            })?
+            .build_readonly()
     }
-    Ok(entry_table)
 }
 
 pub fn fs_move(_luau: &Lua, from_to: LuaMultiValue) -> LuaValueResult {

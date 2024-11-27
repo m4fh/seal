@@ -1,7 +1,9 @@
+--!nonstrict
+
 local thread = require("@std/thread")
 local time = require("@std/time")
 local process = require("@std/process")
-local format = require("@std/io/output").format
+local format = require("@std/io/format")
 
 local handle = thread.spawn({
 	path = "./child_thread.luau"

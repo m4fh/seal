@@ -1,3 +1,4 @@
+--!nonstrict
 local process = require("@std/process")
 local env = require("@std/env")
 

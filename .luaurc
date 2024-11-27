@@ -1,0 +1,8 @@
+{
+	"languageMode": "strict",
+	"aliases": {
+		"std": "./typedefs/std/",
+		"tests": "./tests/luau/",
+		"data": "./tests/data/"
+	}
+}
