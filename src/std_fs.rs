@@ -73,31 +73,27 @@ fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
 }
 
 pub fn fs_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let bytes = {
-        match value {
-            LuaValue::String(file_path) => {
-                let file_path = file_path.to_string_lossy();
-                match fs::read(&file_path) {
-                    Ok(bytes) => bytes,
-                    Err(err) => {
-                        match err.kind() {
-                            io::ErrorKind::NotFound => 
-                                return wrap_err!("fs.readfile: File not found: {}", file_path),
-                            io::ErrorKind::PermissionDenied => 
-                                return wrap_err!("fs.readfile: Permission denied: {}", file_path),
-                            other => {
-                                return wrap_err!("fs.readfile: Error reading file: {}", other);
-                            }
-                        }
-                    }
+    let file_path = match value {
+        LuaValue::String(file_path) => file_path.to_string_lossy(),
+        other => {
+            return wrap_err!("fs.readfile expected string, got {:#?}", other);
+        }
+    };
+    let bytes = match fs::read(&file_path) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::NotFound =>
+                    return wrap_err!("fs.readfile: File not found: {}", file_path),
+                io::ErrorKind::PermissionDenied =>
+                    return wrap_err!("fs.readfile: Permission denied: {}", file_path),
+                other => {
+                    return wrap_err!("fs.readfile: Error reading file: {}", other);
                 }
-            },
-            other => {
-                return wrap_err!("fs.readfile expected string, got: {:#?}", other);
             }
         }
     };
-    Ok(LuaValue::String(luau.create_string(bytes)?)    )
+    Ok(LuaValue::String(luau.create_string(bytes)?))
 }
 
 // Reads random file into an array of bytes
