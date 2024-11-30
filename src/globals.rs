@@ -31,7 +31,9 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             "@std/serde/json" => Ok(table(std_json::create(luau)?)),
         
             "@std/net" => Ok(table(std_net::create(luau)?)),
-            "@std/net/server" => Ok(table(std_net_serve::create(luau)?)),
+            "@std/net/http" => Ok(table(std_net_http::create(luau)?)),
+            "@std/net/http/server" => Ok(table(std_net_serve::create(luau)?)),
+            "@std/net/request" => Ok(function(luau.create_function(std_net_http::http_request)?)),
             "@std/json" => Ok(table(std_json::create(luau)?)),
         
             "@std/thread" => Ok(table(std_thread::create(luau)?)),

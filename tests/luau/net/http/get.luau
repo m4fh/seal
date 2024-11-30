@@ -1,15 +1,15 @@
 --!strict
 --!nolint LocalShadow
-local net = require("@std/net")
+local http = require("@std/net/http")
 
 print(
-	net.get {
+	http.get {
 		url = "https://jsonplaceholder.typicode.com/todos/1"
 	}:unwrap()
 )
 
 print(
-	net.get {
+	http.get {
 		url = "https://jsonplaceholder.typicode.com/posts",
 		params = {
 			userId = "1",
@@ -19,7 +19,7 @@ print(
 
 -- attempt to call :unwrap() with missing arg
 local success, result = pcall(function()
-	local should_actually_error = net.get {
+	local should_actually_error = http.get {
 		url = "",
 		params = {
 			catname = "Taz",
@@ -41,7 +41,7 @@ local x = nil
 local computed = x or nil
 
 local success, result = pcall(function()
-	net.get({
+	http.get({
 		url = "memes.com",
 		body = {
 			x = 2,

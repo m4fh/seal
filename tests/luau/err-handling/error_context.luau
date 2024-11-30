@@ -1,5 +1,3 @@
-local net = require("@std/net")
-
 script.context = "sealion roulette"
 
 local result = try(

@@ -60,9 +60,9 @@ end
 - requests
 
 ```luau
-local net = require("@std/net")
+local http = require("@std/net/http")
 
-local response = net.get({
+local response = http.get({
     url = "https://sealfinder.net/get",
 })
 
@@ -71,7 +71,7 @@ local res = if response.ok then response:decode() else {
 }
 
 -- you can also do this with unwrap!
-local res = net.get({
+local res = http.get({
     url = "https://sealfinder.net/get",
 }):unwrap({ -- all :unwrap() methods take an optional default argument
     location = "where the seals live"
@@ -126,10 +126,10 @@ Child threads have a global `channel` exposed, which you can use to send data to
 
 ```luau
 -- child.luau
-local net = require("@std/net")
+local http = require("@std/net/http")
 if channel then
     local data = channel.data :: { url: string }
-    local response = net.get({ url = data.url }):unwrap()
+    local response = http.get({ url = data.url }):unwrap()
     channel:send(response)
 end
 ```

@@ -98,12 +98,12 @@ assert(
 )
 
 -- many stdlib apis return a `Result` table that contains fields `ok`, some sort of output or result, and a function to :unwrap(which takes a default value):
-local net = require("@std/net")
+local http = require("@std/net/http")
 type RandomDog = {
 	message: string,
 	success: boolean,
 }
-local dog_result: RandomDog = net.get({ 
+local dog_result: RandomDog = http.get({ 
 	url = "https://dog.ceo/api/breeds/image/random"
 }):unwrap({
 	message = "dog not found",
@@ -134,7 +134,7 @@ local random_number = try(
 -- it also supports :unwrap(with default?)
 local thing_that_breaks_sometimes = try(
 	function()
-		return net.get {
+		return http.get {
 			url = "https://some_spooky_endpoint.net/get",
 		}:unwrap()
 	end

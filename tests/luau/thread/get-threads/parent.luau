@@ -1,7 +1,7 @@
 --!nonstrict
 --!nolint LocalShadow
 local thread = require("@std/thread")
-local net = require("@std/net")
+local http = require("@std/net/http")
 local format = require("@std/io/format")
 
 local urls: {string} = {
@@ -13,11 +13,11 @@ local urls: {string} = {
 	"https://jsonplaceholder.typicode.com/todos/1",
 }
 
--- get synchronously
+-- get serially
 local s_t = os.clock()
 local results = {}
 for _, url in urls do
-	local result = net.get({
+	local result = http.get({
 		url = url,
 	})
 	if result.ok then
@@ -26,6 +26,7 @@ for _, url in urls do
 end
 print(`{os.clock() - s_t} seconds in serial`)
 
+-- get in parallel
 local s_t = os.clock()
 
 local handles: { [string]: thread.ThreadHandle } = {}

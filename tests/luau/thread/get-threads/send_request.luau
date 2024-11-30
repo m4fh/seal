@@ -1,8 +1,8 @@
-local net = require("@std/net")
+local http = require("@std/net/http")
 
 if channel and channel.data then
 	local content = channel.data :: { url: string }
-	local result = net.get {
+	local result = http.get {
 		url = content.url
 	}
 	if result.ok then

@@ -16,9 +16,10 @@ mod std_io;
 mod std_io_colors;
 mod std_io_input;
 mod std_net;
+mod std_net_http;
+mod std_net_serve;
 mod std_thread;
 mod std_shellexec;
-mod std_net_serve;
 mod std_serde;
 
 mod globals;
