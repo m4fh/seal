@@ -1,4 +1,4 @@
-local server = require("@std/net/server")
+local server = require("@std/net/http/server")
 local fs = require("@std/fs")
 local json = require("@std/json")
 

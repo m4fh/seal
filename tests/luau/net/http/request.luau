@@ -1,13 +1,13 @@
 --!nolint LocalShadow
-local net = require("@std/net")
+local request = require("@std/net/request")
 
-local result = net.request {
+local result = request {
 	url = "https://jsonplaceholder.typicode.com/todos/1",
 	method = "DELETE",
 }
 assert(result.ok, "issue deleting from placeholder endpoint")
 
-local result = net.request {
+local result = request {
 	url = "https://jsonplaceholder.typicode.com/posts/1",
 	method = "PATCH",
 	body = {

@@ -1,6 +1,6 @@
-local net = require("@std/net")
+local http = require("@std/net/http")
 
-local result = net.post {
+local result = http.post {
 	url = "https://jsonplaceholder.typicode.com/posts",
 	body = {
 		title = "meow",
