@@ -117,14 +117,7 @@ local handle = thread.spawn {
     }
 }
  -- do something else
-local res = nil
-while thread.sleep(20) do -- waits 20 ms
-    -- do something else
-    res = handle:read()
-    if res ~= nil then
-        break
-    end
-end
+local res = handle:read_await()
 
 handle:join() -- don't forget to join your handles!
 ```
