@@ -18,9 +18,12 @@ declare script: {
 }
 
 declare channel: {
-	send: <T>(self: any, data: T | string) -> (),
-	read: <T>(self: any) -> T?,
-	--- optional data passed into a thread upon thread.spawn
+	send: <D>(self: any, data: D | string) -> (),
+	sendbytes: <D>(self: any, data: buffer) -> (),
+	read: <D>(self: any) -> D?,
+	read_await: <D>(self: any) -> D,
+	readbytes: (self: any) -> buffer?,
+	readbytes_await: (self: any) -> buffer,
 	data: any?,
 }?
 

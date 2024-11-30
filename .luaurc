@@ -1,5 +1,8 @@
 {
 	"languageMode": "strict",
+	"lint": {
+		"LocalUnused": "false"
+	},
 	"aliases": {
 		"std": "./typedefs/std/",
 		"tests": "./tests/luau/",
