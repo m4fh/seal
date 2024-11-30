@@ -1,7 +1,6 @@
 use std::{fs, time::Duration};
 use std::sync::Mutex;
 use std::thread;
-use std::sync::Arc;
 
 use regex::Regex;
 use crossbeam_channel::{bounded, Sender, Receiver};
@@ -241,8 +240,9 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                     }
                 }
             });
-            // no clue why this works, got it off copilot but yay fearful concurrency :p 
-            let arc_handle = Arc::new(Mutex::new(Some(handle)));
+            // hmm wonder why this works, got it off copilot but yay fearful concurrency :p 
+            // let arc_handle = Arc::new(Mutex::new(Some(handle)));
+            let arc_handle = Mutex::new(Some(handle));
 
             Ok(LuaValue::Table(
                 TableBuilder::create(luau)?
