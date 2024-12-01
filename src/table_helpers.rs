@@ -1,3 +1,7 @@
+// Code adapted from Lune's TableBuilder: https://github.com/lune-org/lune/blob/main/crates/lune-utils/src/table_builder.rs
+// This file is licensed under the Mozilla Public License (MPL 2.0): https://github.com/lune-org/lune/blob/main/LICENSE.txt
+// as that's Lune's license
+
 #![allow(clippy::missing_errors_doc)]
 #![allow(dead_code)]
 
@@ -6,16 +10,16 @@ use mlua::prelude::*;
 /**
     Utility struct for building Lua tables.
 */
-pub struct TableBuilder<'lua> {
-    luau: &'lua Lua,
+pub struct TableBuilder<'luau> {
+    luau: &'luau Lua,
     tab: LuaTable,
 }
 
-impl<'lua> TableBuilder<'lua> {
+impl<'luau> TableBuilder<'luau> {
     /**
         Creates a new table builder.
     */
-    pub fn create(luau: &'lua Lua) -> LuaResult<Self> {
+    pub fn create(luau: &'luau Lua) -> LuaResult<Self> {
         let tab = luau.create_table()?;
         Ok(Self { luau, tab })
     }
