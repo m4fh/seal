@@ -5,7 +5,8 @@ local fs = require("@std/fs")
 local new_settings = std.json.decode([[
 	{
 		"luau-lsp.require.directoryAliases": {
-			"@std": "./typedefs/std/"
+			"@std": "./typedefs/std/",
+			"@workspace": "./"
 		},
 		"luau-lsp.fflags.override": {
 			"LuauSolverV2": "true",

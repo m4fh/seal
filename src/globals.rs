@@ -60,7 +60,6 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
                 wrap_err!("program required an unexpected standard library: {}", other)
             }
         }
-        
     } else if path.starts_with("@") {
         todo!("require aliases not impl yet")
         // Err(LuaError::external("invalid require path or not impl yet"))

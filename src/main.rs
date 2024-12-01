@@ -34,13 +34,13 @@ type LuaValueResult = LuaResult<LuaValue>;
 fn main() -> LuaResult<()> {
     let args: Vec<String> = env::args().collect();
     if args.len() <= 1 {
-        panic!("Bad usage: did you forget to pass me a file?")
+        panic!("seal: did you forget to pass me a file?")
     }
 
     let first_arg = args[1].clone();
 
     if first_arg == "--help" || first_arg == "-h" {
-        println!("help");
+        println!("seal help will be implemented SOON(TM)");
         return Ok(());
     }
     
@@ -81,7 +81,7 @@ fn main() -> LuaResult<()> {
         panic::set_hook(Box::new(|info| {
             let payload = info.payload().downcast_ref::<&str>().map(|s| s.to_string())
                 .or_else(|| info.payload().downcast_ref::<String>().cloned())
-                .unwrap_or_else(|| "Unknown error, please report this to the manager (deviaze)".to_string());
+                .unwrap_or_else(|| "Unknown error running the custom panic hook, please report this to the manager (deviaze)".to_string());
             
             eprintln!("{}[ERR]{}{} {}{}", colors::BOLD_RED, colors::RESET, colors::RED, payload, colors::RESET);
         }));
@@ -110,10 +110,33 @@ fn main() -> LuaResult<()> {
                 args[2].clone()
             }
         } else {
-            let file_path = first_arg.clone();
+            let file_path = {
+                if first_arg == "run" {
+                    let src_dir = Path::new("src");
+                    if src_dir.exists() && src_dir.is_dir() {
+                        let main_luau = src_dir.join("main.luau");
+                        if main_luau.exists() && main_luau.is_file() {
+                            main_luau.to_string_lossy().to_string()
+                        } else {
+                            panic!("@workspace/src/ doesn't contain a main.luau");
+                        }
+                    } else if args.len() <= 2 {
+                        let init_luau = Path::new("init.luau");
+                        if init_luau.exists() && init_luau.is_file() {
+                            init_luau.to_string_lossy().to_string()
+                        } else {
+                            panic!("seal run expected to be ran in a project directory (that contains @workspace/src/main.luau or @workspace/init.luau); didn't find either in this directory.");
+                        }
+                    } else {
+                        args[2].clone()
+                    }
+                } else { // support `seal run myfile.luau` for them lune habits
+                    first_arg.clone()
+                }
+            };
 
-            if file_path.ends_with(".lua") {
-                panic!("Wrong language! Pick a different runtime if you want to run Lua files.")
+            if !file_path.ends_with(".luau") {
+                panic!("Wrong language! seal only runs .luau files")
             }
 
             globals.set("script", TableBuilder::create(&luau)?
