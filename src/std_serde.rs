@@ -239,18 +239,16 @@ fn convert_lua_to_toml(luau: &Lua, table: LuaTable) -> LuaResult<TomlValue> {
 
 fn serde_base64_encode(luau: &Lua, data: LuaValue) -> LuaValueResult {
     match data {
-        LuaValue::String(data) => {
-            let rust_data = data.to_str()?;
-            let encoded_string = base64::encode(rust_data.as_bytes());
-            encoded_string.into_lua(luau)
-        },
         LuaValue::Buffer(buffy) => {
             let rust_vec_u8: Vec<u8> = buffy.to_vec();
             let encoded_string = base64::encode(rust_vec_u8);
             encoded_string.into_lua(luau)
         },
+        LuaValue::String(_data) => {
+            wrap_err!("serde.base64.encode: got string, please pass buffer instead")
+        },
         other => {
-            wrap_err!("serde.base64.encode expected string or buffer, got: {:#?}", other)
+            wrap_err!("serde.base64.encode expected buffer, got: {:#?}", other)
         }
     }
 }

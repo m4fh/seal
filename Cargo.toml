@@ -17,3 +17,10 @@ base64 = { version = "0.13.0" }
 serde_yaml = "0.9.21"
 toml = "0.5.9"
 serde-xml-rs = "0.5.1"
+ring = "0.17.8"
+rsa = "0.9.7"
+rand = "0.8.5"
+simple_crypt = "0.2.3"
+
+[profile.dev.package.num-bigint-dig]
+opt-level = 3 # otherwise rsa keygen takes forever

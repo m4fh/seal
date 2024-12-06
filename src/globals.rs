@@ -35,6 +35,10 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             "@std/net/http/server" => Ok(table(std_net_serve::create(luau)?)),
             "@std/net/request" => Ok(function(luau.create_function(std_net_http::http_request)?)),
             "@std/json" => Ok(table(std_json::create(luau)?)),
+
+            "@std/crypt" => Ok(table(std_crypt::create(luau)?)),
+            "@std/crypt/aes" => Ok(table(std_crypt::create_aes(luau)?)),
+            "@std/crypt/rsa" => Ok(table(std_crypt::create_rsa(luau)?)),
         
             "@std/thread" => Ok(table(std_thread::create(luau)?)),
             "@std" => {
