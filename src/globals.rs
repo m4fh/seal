@@ -73,31 +73,39 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
         let script: LuaTable = luau.globals().get("script")?;
         let current_path: String = script.get("current_path")?;
 
-        let captures = extract_path_re.captures(&current_path).unwrap();
+        let captures = match extract_path_re.captures(&current_path) {
+            Some(captures) => captures,
+            None => {
+                return wrap_err!("require: path could not be extracted: {}", current_path);
+            }
+        };
         let new_path = &captures[1];
         let path = path.replace("./", "");
         let path = format!("{new_path}{path}");
         let path_ref = path.clone();
 
-        let require_path = match fs::metadata(&path) {
-            Ok(metadata) => {
-                if metadata.is_file() {
-                    Ok(path)
-                } else if metadata.is_dir() {
-                    let init_path = format!("{path}/init.luau");
-                    if fs::metadata(&init_path).is_ok() {
-                        Ok(init_path)
-                    } else {
-                        wrap_err!("require: required directory doesn't contain an init.luau")
-                    }
+        let require_path = {
+            let path = Path::new(&path);
+            if path.exists() && path.is_file() {
+                path.to_string_lossy().to_string()
+            } else if path.exists() && path.is_dir() {
+                let init_luau = path.join("init.luau");
+                if init_luau.exists() && init_luau.is_file() {
+                    init_luau.to_string_lossy().to_string()
                 } else {
-                    unreachable!("require: wtf is this path?")
+                    return wrap_err!("require: required directory doesn't contain an init.luau");
                 }
-            }, 
-            Err(_) => {
-                wrap_err!("require: path \"{}\" doesn't exist", path)
+            } else {
+                let path_luau = path.to_string_lossy().to_string() + ".luau";
+                let path_luau = Path::new(&path_luau);
+                if path_luau.exists() && path_luau.is_file() {
+                    path_luau.to_string_lossy().to_string()
+                } else {
+                    return wrap_err!("require: path {} doesn't exist", path_luau.to_string_lossy().to_string());
+                }
             }
-        }?;
+        };
+
         let data = fs::read_to_string(require_path)?;
         script.set("current_path", path_ref.to_owned())?;
         let result: LuaValue = luau.load(data).eval()?;

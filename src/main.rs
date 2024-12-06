@@ -114,22 +114,13 @@ fn main() -> LuaResult<()> {
             let file_path = {
                 if first_arg == "run" {
                     if args.len() == 2 { // `seal run` (workspace)
-                        let src_dir = Path::new("src");
-                        let init_luau = src_dir.join("init.luau");
-                        if init_luau.exists() && init_luau.is_file() {
-                            init_luau.to_string_lossy().to_string()
-                        } else if src_dir.exists() && src_dir.is_dir() {
-                            let main_luau = src_dir.join("main.luau");
-                            if main_luau.exists() && main_luau.is_file() {
-                                main_luau.to_string_lossy().to_string()
-                            } else {
-                                panic!("seal run: cannot run workspace, missing `@workspace/src/main.luau` or `@workspace/init.luau`\n{}  Tips: use `seal run ./path/to/myfile.luau` or `seal ./path/to/myfile.luau` to run a specific file.\n  To run the current workspace with `seal run`, you must be in the workspace's root path and have a valid entry path (@workspace/src/main.luau or @workspace/init.luau).\n  Run `seal setup` to start a default seal project in your current working directory.", colors::RESET);
-                            }
-                        } else {
-                            panic!("seal run: cannot run workspace, missing `@workspace/src/main.luau` or `@workspace/init.luau`\n{}  Tips: use `seal run ./path/to/myfile.luau` or `seal ./path/to/myfile.luau` to run a specific file.\n  To run the current workspace with `seal run`, you must be in the workspace's root path and have a valid entry path (@workspace/src/main.luau or @workspace/init.luau).\n  Run `seal setup` to start a default seal project in your current working directory.", colors::RESET);
+                        find_entry_path()
+                    } else if args.len() >= 3 { 
+                        if args[2].ends_with(".luau") { // `seal run myfile.luau`
+                            args[2].clone()
+                        } else { // `seal run somearg somearg2` (workspace)
+                            find_entry_path()
                         }
-                    } else if args.len() == 3 { // `seal run myfile.luau`
-                        args[2].clone()
                     } else {
                         panic!("seal run: invalid number of arguments provided. Use `seal run` to run the current workspace or `seal run ./somefile.luau` to run a specific file.");
                     }
@@ -210,5 +201,21 @@ fn main() -> LuaResult<()> {
             panic!("{}", err_message);
         },
     }
+}
 
+fn find_entry_path() -> String {
+    let src_dir = Path::new("src");
+    let init_luau = src_dir.join("init.luau");
+    if init_luau.exists() && init_luau.is_file() {
+        init_luau.to_string_lossy().to_string()
+    } else if src_dir.exists() && src_dir.is_dir() {
+        let main_luau = src_dir.join("main.luau");
+        if main_luau.exists() && main_luau.is_file() {
+            main_luau.to_string_lossy().to_string()
+        } else {
+            panic!("seal run: cannot run workspace, missing `@workspace/src/main.luau` or `@workspace/init.luau`\n{}  Tips: use `seal run ./path/to/myfile.luau` or `seal ./path/to/myfile.luau` to run a specific file.\n  To run the current workspace with `seal run`, you must be in the workspace's root path and have a valid entry path (@workspace/src/main.luau or @workspace/init.luau).\n  Run `seal setup` to start a default seal project in your current working directory.", colors::RESET);
+        }
+    } else {
+        panic!("seal run: cannot run workspace, missing `@workspace/src/main.luau` or `@workspace/init.luau`\n{}  Tips: use `seal run ./path/to/myfile.luau` or `seal ./path/to/myfile.luau` to run a specific file.\n  To run the current workspace with `seal run`, you must be in the workspace's root path and have a valid entry path (@workspace/src/main.luau or @workspace/init.luau).\n  Run `seal setup` to start a default seal project in your current working directory.", colors::RESET);
+    }
 }
