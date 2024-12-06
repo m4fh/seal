@@ -40,7 +40,7 @@ export type ServeResponse = {
 	redirect_url: string?
 }
 	
-export type ServeRequestInfo = {
+export type ServeRequest = {
 	method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
 	path: string,
 	headers: {
@@ -53,7 +53,7 @@ export type ServeRequestInfo = {
 export type ServeConfig = {
 	address: string,
 	port: string | number,
-	handler: (ServeRequestInfo) -> ServeResponse,
+	handler: (ServeRequest) -> ServeResponse,
 }
 
 function server.serve(config: ServeConfig)

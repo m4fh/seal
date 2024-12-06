@@ -5,7 +5,7 @@ local json = require("@std/json")
 server.serve {
 	address = "localhost",
 	port = 4242,
-	handler = function(info: server.ServeRequestInfo)
+	handler = function(info: server.ServeRequest)
 		local response = {}
 		if info.path == "/meow.json" then
 			response.status_code = "200 OK"
