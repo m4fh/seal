@@ -113,25 +113,27 @@ fn main() -> LuaResult<()> {
         } else {
             let file_path = {
                 if first_arg == "run" {
-                    let src_dir = Path::new("src");
-                    if src_dir.exists() && src_dir.is_dir() {
-                        let main_luau = src_dir.join("main.luau");
-                        if main_luau.exists() && main_luau.is_file() {
-                            main_luau.to_string_lossy().to_string()
-                        } else {
-                            panic!("@workspace/src/ doesn't contain a main.luau");
-                        }
-                    } else if args.len() <= 2 {
-                        let init_luau = Path::new("init.luau");
+                    if args.len() == 2 { // `seal run` (workspace)
+                        let src_dir = Path::new("src");
+                        let init_luau = src_dir.join("init.luau");
                         if init_luau.exists() && init_luau.is_file() {
                             init_luau.to_string_lossy().to_string()
+                        } else if src_dir.exists() && src_dir.is_dir() {
+                            let main_luau = src_dir.join("main.luau");
+                            if main_luau.exists() && main_luau.is_file() {
+                                main_luau.to_string_lossy().to_string()
+                            } else {
+                                panic!("seal run: cannot run workspace, missing `@workspace/src/main.luau` or `@workspace/init.luau`\n{}  Tips: use `seal run ./path/to/myfile.luau` or `seal ./path/to/myfile.luau` to run a specific file.\n  To run the current workspace with `seal run`, you must be in the workspace's root path and have a valid entry path (@workspace/src/main.luau or @workspace/init.luau).\n  Run `seal setup` to start a default seal project in your current working directory.", colors::RESET);
+                            }
                         } else {
-                            panic!("seal run expected to be ran in a project directory (that contains @workspace/src/main.luau or @workspace/init.luau); didn't find either in this directory.");
+                            panic!("seal run: cannot run workspace, missing `@workspace/src/main.luau` or `@workspace/init.luau`\n{}  Tips: use `seal run ./path/to/myfile.luau` or `seal ./path/to/myfile.luau` to run a specific file.\n  To run the current workspace with `seal run`, you must be in the workspace's root path and have a valid entry path (@workspace/src/main.luau or @workspace/init.luau).\n  Run `seal setup` to start a default seal project in your current working directory.", colors::RESET);
                         }
-                    } else {
+                    } else if args.len() == 3 { // `seal run myfile.luau`
                         args[2].clone()
+                    } else {
+                        panic!("seal run: invalid number of arguments provided. Use `seal run` to run the current workspace or `seal run ./somefile.luau` to run a specific file.");
                     }
-                } else { // support `seal run myfile.luau` for them lune habits
+                } else { // `seal myfile.luau`
                     first_arg.clone()
                 }
             };
