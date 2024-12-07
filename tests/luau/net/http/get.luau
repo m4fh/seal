@@ -5,7 +5,7 @@ local http = require("@std/net/http")
 print(
 	http.get {
 		url = "https://jsonplaceholder.typicode.com/todos/1"
-	}:unwrap()
+	}:unwrap_json()
 )
 
 print(
@@ -14,7 +14,7 @@ print(
 		params = {
 			userId = "1",
 		}
-	}:unwrap()
+	}:unwrap_json()
 )
 
 -- attempt to call :unwrap() with missing arg
@@ -24,7 +24,7 @@ local success, result = pcall(function()
 		params = {
 			catname = "Taz",
 		}
-	}:unwrap()
+	}:unwrap_json()
 	return should_actually_error
 end)
 local result = tostring(result)
@@ -47,7 +47,7 @@ local success, result = pcall(function()
 			x = 2,
 			y = 3,
 		}
-	}):unwrap(nil)
+	}):unwrap_json(nil)
 end)
 local result = tostring(result)
 

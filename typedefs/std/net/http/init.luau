@@ -26,7 +26,7 @@ export type HttpResponse = ({
 	err: string,
 }) & {
 	--- decodes body as json or returns default value; errors if ok = false and default value not provided
-	unwrap: (self: HttpResponse, default: { [any]: any }?) -> { [any]: any }
+	unwrap_json: (self: HttpResponse, default: { [any]: any }?) -> { [any]: any }
 }
 
 --[=[
@@ -52,7 +52,7 @@ local cats = http.get {
 	params = {
 		name = "Nanuk",
 	},
-}:unwrap()
+}:unwrap_json()
 ```
 ]=]
 function http.get(url: GetConfig): HttpResponse

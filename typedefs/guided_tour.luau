@@ -77,7 +77,7 @@ print(
 
 -- you can get tons of mileage outta running arbitrary processes
 -- here, we're writing a luau script and running it with seal
-local basic_script = fs.writefile {
+fs.writefile {
 	path = "./print_args.luau",
 	content = "local args = require('@std/env').args; pp(args)"
 }
@@ -105,7 +105,7 @@ type RandomDog = {
 }
 local dog_result: RandomDog = http.get({ 
 	url = "https://dog.ceo/api/breeds/image/random"
-}):unwrap({
+}):unwrap_json({
 	message = "dog not found",
 	success = "false",
 })
@@ -136,7 +136,7 @@ local thing_that_breaks_sometimes = try(
 	function()
 		return http.get {
 			url = "https://some_spooky_endpoint.net/get",
-		}:unwrap()
+		}:unwrap_json()
 	end
 ):unwrap({
 	status = "yeah ofc it broke"

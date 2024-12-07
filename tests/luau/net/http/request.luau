@@ -13,5 +13,5 @@ local result = request {
 	body = {
 		title = "hmmmm",
 	}
-}:unwrap()
+}:unwrap_json()
 assert(result.title == "hmmmm", "issue patching placeholder endpoint")

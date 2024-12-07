@@ -195,7 +195,7 @@ pub fn http_post(luau: &Lua, post_config: LuaValue) -> LuaValueResult {
                         .with_value("ok", true)?
                         .with_value("body", body.clone())?
                         .with_function("decode", json_decode_body.to_owned())?
-                        .with_function("unwrap", json_decode_body.to_owned())?
+                        .with_function("unwrap_json", json_decode_body.to_owned())?
                         .build_readonly()?;
                     Ok(LuaValue::Table(result))
                 },
@@ -203,7 +203,7 @@ pub fn http_post(luau: &Lua, post_config: LuaValue) -> LuaValueResult {
                     let err_result = TableBuilder::create(luau)?
                         .with_value("ok", false)?
                         .with_value("err", err.to_string())?
-                        .with_function("unwrap", |_luau: &Lua, default: LuaValue| {
+                        .with_function("unwrap_json", |_luau: &Lua, default: LuaValue| {
                             match default {
                                 LuaValue::Nil => {
                                     wrap_err!("net.post: attempted to unwrap an erred request without default argument")
@@ -281,7 +281,7 @@ fn http_put(luau: &Lua, put_config: LuaValue) -> LuaValueResult {
                         .with_value("ok", true)?
                         .with_value("body", body.clone())?
                         .with_function("decode", json_decode_body.to_owned())?
-                        .with_function("unwrap", json_decode_body.to_owned())?
+                        .with_function("unwrap_json", json_decode_body.to_owned())?
                         .build_readonly()?;
                     Ok(LuaValue::Table(result))
                 },
@@ -289,7 +289,7 @@ fn http_put(luau: &Lua, put_config: LuaValue) -> LuaValueResult {
                     let err_result = TableBuilder::create(luau)?
                         .with_value("ok", false)?
                         .with_value("err", err.to_string())?
-                        .with_function("unwrap", |_luau: &Lua, default: LuaValue| {
+                        .with_function("unwrap_json", |_luau: &Lua, default: LuaValue| {
                             match default {
                                 LuaValue::Nil => {
                                     wrap_err!("net.put: attempted to unwrap an erred request without default argument")
