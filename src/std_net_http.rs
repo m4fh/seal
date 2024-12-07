@@ -104,7 +104,7 @@ pub fn http_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                         .with_value("ok", true)?
                         .with_value("body", body)?
                         .with_function("decode", json_decode_body.to_owned())?
-                        .with_function("unwrap", json_decode_body.to_owned())?
+                        .with_function("unwrap_json", json_decode_body.to_owned())?
                         .build_readonly()?;
                     Ok(LuaValue::Table(result))
                 },
@@ -112,7 +112,7 @@ pub fn http_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                     let err_result = TableBuilder::create(luau)?
                         .with_value("ok", false)?
                         .with_value("err", err.to_string())?
-                        .with_function("unwrap", |_luau: &Lua, mut default: LuaMultiValue| {
+                        .with_function("unwrap_json", |_luau: &Lua, mut default: LuaMultiValue| {
                             let response = default.pop_front().unwrap();
                             let default = default.pop_back();
                             match default {
@@ -367,7 +367,7 @@ fn http_patch(luau: &Lua, patch_config: LuaValue) -> LuaValueResult {
                         .with_value("ok", true)?
                         .with_value("body", body.clone())?
                         .with_function("decode", json_decode_body.to_owned())?
-                        .with_function("unwrap", json_decode_body.to_owned())?
+                        .with_function("unwrap_json", json_decode_body.to_owned())?
                         .build_readonly()?;
                     Ok(LuaValue::Table(result))
                 },
@@ -375,7 +375,7 @@ fn http_patch(luau: &Lua, patch_config: LuaValue) -> LuaValueResult {
                     let err_result = TableBuilder::create(luau)?
                         .with_value("ok", false)?
                         .with_value("err", err.to_string())?
-                        .with_function("unwrap", |_luau: &Lua, default: LuaValue| {
+                        .with_function("unwrap_json", |_luau: &Lua, default: LuaValue| {
                             match default {
                                 LuaValue::Nil => {
                                     wrap_err!("net.request: PATCH: attempted to unwrap an erred request without default argument")
@@ -440,7 +440,7 @@ fn http_delete(luau: &Lua, delete_config: LuaValue) -> LuaValueResult {
                         .with_value("ok", true)?
                         .with_value("body", body.clone())?
                         .with_function("decode", json_decode_body.to_owned())?
-                        .with_function("unwrap", json_decode_body.to_owned())?
+                        .with_function("unwrap_json", json_decode_body.to_owned())?
                         .build_readonly()?;
                     Ok(LuaValue::Table(result))
                 },
@@ -448,10 +448,10 @@ fn http_delete(luau: &Lua, delete_config: LuaValue) -> LuaValueResult {
                     let err_result = TableBuilder::create(luau)?
                         .with_value("ok", false)?
                         .with_value("err", err.to_string())?
-                        .with_function("unwrap", |_luau: &Lua, default: LuaValue| {
+                        .with_function("unwrap_json", |_luau: &Lua, default: LuaValue| {
                             match default {
                                 LuaValue::Nil => {
-                                    wrap_err!("net.request: PATCH: attempted to unwrap an erred request without default argument")
+                                    wrap_err!("net.request: DELETE: attempted to unwrap an erred request without default argument")
                                 },
                                 other => {
                                     Ok(other)
