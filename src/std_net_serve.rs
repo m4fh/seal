@@ -148,9 +148,9 @@ fn handle_client(mut stream: TcpStream, handler_function: LuaFunction, luau: &Lu
         Err(err) => return wrap_err!("ServeResponse table missing 'status_code': {}", err),
     };
 
-    let response_type: String = match serve_response.raw_get("response_type") {
-        Ok(response_type) => {
-            if let LuaValue::String(response) = response_type {
+    let content_type: String = match serve_response.raw_get("content_type") {
+        Ok(content_type) => {
+            if let LuaValue::String(response) = content_type {
                 let response = response.to_string_lossy();
                 match response.to_lowercase().as_str() {
                     "text" => "text/plain; charset=utf-8".to_string(),
@@ -162,10 +162,10 @@ fn handle_client(mut stream: TcpStream, handler_function: LuaFunction, luau: &Lu
                     other => other.to_string()
                 }
             } else {
-                return wrap_err!("ServeResponse expected response_type to be a string, got: {:#?}", response_type);
+                return wrap_err!("ServeResponse expected content_type to be a string, got: {:#?}", content_type);
             }
         },
-        Err(err) => return wrap_err!("ServeResponse table missing 'response_type': {}", err),
+        Err(err) => return wrap_err!("ServeResponse table missing 'content_type': {}", err),
     };
 
     let mut buffer_body: Option<Vec<u8>> = None;
@@ -211,7 +211,7 @@ fn handle_client(mut stream: TcpStream, handler_function: LuaFunction, luau: &Lu
 
     // Respond with the specified content
     let response = format!("{} {} {}\r\nContent-Type: {}\r\n{}Content-Length: {}\r\n\r\n{}", 
-        http_version, status_code, reason_phrase, response_type, additional_headers, body.len(), body);
+        http_version, status_code, reason_phrase, content_type, additional_headers, body.len(), body);
     
     // now we actually send and write to stream
     // if someone passed in body = somebuffer then we have to write the buffer to the stream separately

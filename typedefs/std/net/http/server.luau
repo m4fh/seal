@@ -15,7 +15,7 @@ type StatusCode =
     | "502 Bad Gateway"
     | "503 Service Unavailable"
 
-type ResponseType = 
+type ContentType = 
 	| "Text"
 	| "HTML"
 	| "JSON"
@@ -27,7 +27,7 @@ type ResponseType =
 
 export type ServeResponse = {
 	status_code: StatusCode,
-	response_type: ResponseType,
+	content_type: ContentType,
 	body: string,
 	headers: {
 		[string]: string,
