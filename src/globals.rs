@@ -57,6 +57,7 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
                         .with_value("serde", std_serde::create(luau)?)?
                         .with_value("json", std_json::create(luau)?)?
                         .with_value("net", std_net::create(luau)?)?
+                        .with_value("crypt", std_crypt::create(luau)?)?
                         .with_value("thread", std_thread::create(luau)?)?
                         .build_readonly()?
                 ))
