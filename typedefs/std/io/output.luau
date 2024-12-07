@@ -42,4 +42,9 @@ end
 output["print-and-return"] = function(...: any): ...string
 	return nil :: any
 end
+
+--- clears the terminal stdout, aka `cls` or `clear`
+function output.clear(): nil
+	return nil
+end
 return output

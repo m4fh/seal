@@ -15,3 +15,5 @@ print(output.format(thing))
 local dformatted = output["debug-format"](thing)
 
 output["debug-print"](thing)
+
+output.clear()

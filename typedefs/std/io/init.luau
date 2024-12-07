@@ -9,6 +9,7 @@ Usage:
 local input = require("@std/io/input")
 local output = require("@std/io/output")
 local colors = require("@std/io/colors")
+local clear = require("@std/io/clear")
 
 local response = input.get("hi, who are you?: ")
 if response == "me" then
@@ -27,7 +28,7 @@ local some_random_table = {
 
 print(`my very cool table: {output.format(some_random_table)}`)
 
-local io = require("@std/io")
+clear() -- cls/clear
 ```
 ]=]
 local io = {}

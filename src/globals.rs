@@ -15,7 +15,8 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             "@std/io/input" => Ok(table(std_io_input::create(luau)?)),
             "@std/io/output" => Ok(table(std_io_output::create(luau)?)),
             "@std/io/colors" => Ok(table(colors::create(luau)?)),
-            "@std/io/format" => Ok(function(luau.create_function(std_io_output::prettify_output)?)),
+            "@std/io/clear" => Ok(function(luau.create_function(std_io_output::output_clear)?)),
+            "@std/io/format" => Ok(function(luau.create_function(std_io_output::format_output)?)),
             "@std/colors" => Ok(table(colors::create(luau)?)),
         
             "@std/time" => Ok(table(std_time::create(luau)?)),
@@ -48,7 +49,7 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
                         .with_value("env", std_env::create(luau)?)?
                         .with_value("io", std_io::create(luau)?)?
                         .with_value("colors", colors::create(luau)?)?
-                        .with_value("format", function(luau.create_function(std_io_output::prettify_output)?))?
+                        .with_value("format", function(luau.create_function(std_io_output::format_output)?))?
                         .with_value("time", std_time::create(luau)?)?
                         .with_value("datetime", std_time::create_datetime(luau)?)?
                         .with_value("process", std_process::create(luau)?)?
