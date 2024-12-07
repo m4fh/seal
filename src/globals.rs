@@ -69,7 +69,7 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
     } else if path.starts_with("@") {
         todo!("require aliases not impl yet")
         // Err(LuaError::external("invalid require path or not impl yet"))
-    } else if path.starts_with("./") {
+    } else if path.starts_with("./") || path.starts_with("../") {
         // regex should handle both windows and unix paths
         let extract_path_re = Regex::new(r"^(.*[/\\])[^/\\]+\.luau$").unwrap();
         let script: LuaTable = luau.globals().get("script")?;
@@ -82,7 +82,13 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             }
         };
         let new_path = &captures[1];
-        let path = path.replace("./", "");
+        let path = {
+            if path.starts_with("./") {
+                path.replace("./", "")
+            } else {
+                path
+            }
+        };
         let path = format!("{new_path}{path}");
         let path_ref = path.clone();
 
