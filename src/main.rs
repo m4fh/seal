@@ -22,6 +22,7 @@ mod std_thread;
 mod std_shellexec;
 mod std_serde;
 mod std_crypt;
+mod std_testing;
 
 mod globals;
 

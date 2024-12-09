@@ -26,13 +26,3 @@ declare channel: {
 	readbytes_await: (self: any) -> buffer,
 	data: any?,
 }?
-
-declare function try(protected_f: () -> any): {
-	ok: boolean,
-	match: (self: any, matcher: {
-		ok: (result: any?) -> any?,
-		err: (err: any?) -> any?,
-	}) -> any?,
-	unwrap: (self: any, default: any?) -> any,
-	expect_err: (self: any, handler: string | (err: unknown) -> any) -> any,
-}

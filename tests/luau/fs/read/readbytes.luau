@@ -10,6 +10,8 @@ assert(buff ~= nil, "fs.readbytes default version broke?")
 local buff = fs.readbytes(funny_story, 0, 16)
 assert(buffer.tostring(buff) == "Once upon a time", "reading buff from bytes 0 to 16 isn't 'Once upon a time'?")
 
+local try = require("@std/testing/try")
+
 -- should fail with invalid parms
 do
 	try(function()

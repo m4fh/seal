@@ -19,6 +19,8 @@ assert(ninexists == nil)
 
 assert(fs.find{file = "Cargo.toml"} ~= nil)
 
+local try = require("@std/testing/try")
+
 -- handle cases
 do
 	try(function()

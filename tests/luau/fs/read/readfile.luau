@@ -10,6 +10,8 @@ local res = fs.readfile("./tests/data/nanuk.png")
 local bytes = fs.readbytes("./tests/data/nanuk.png")
 assert(#res == buffer.len(bytes), "fs.readfile and fs.readbytes giving different length?")
 
+local try = require("@std/testing/try")
+
 -- handle invalid stuffs
 do
 	try(function()

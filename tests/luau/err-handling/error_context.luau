@@ -1,4 +1,7 @@
+--!nonstrict
 script.context = "sealion roulette"
+
+local try = require("@std/testing/try")
 
 local result = try(
 	function()

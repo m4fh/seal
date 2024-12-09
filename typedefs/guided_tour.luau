@@ -75,6 +75,9 @@ print(
 	}).stdout
 )
 
+-- or more conveniently, process.shell handles the shell stuff for us:
+local result = process.shell("ls ./*"):unwrap()
+
 -- you can get tons of mileage outta running arbitrary processes
 -- here, we're writing a luau script and running it with seal
 fs.writefile {
@@ -113,31 +116,3 @@ local dog_result: RandomDog = http.get({
 local output = require("@std/io/output")
 
 print(`Your dog of the day is: {output.format(dog_result)}`)
-
--- pcall might be out-of-fashion for our modern seals. 
--- to match our other Result-like apis, we provide a handy `try` alternative:
-local random_number = try(
-	function()
-		local randy = math.random(1, 10)
-		return if randy ~= 8 then randy else error("hit the eight")
-	end
-):match({
-	ok = function(result: number)
-		return result + 2
-	end,
-	err = function(err)
-		print(`oops: {tostring(err)}`)
-		return 7
-	end
-}) :: number
-
--- it also supports :unwrap(with default?)
-local thing_that_breaks_sometimes = try(
-	function()
-		return http.get {
-			url = "https://some_spooky_endpoint.net/get",
-		}:unwrap_json()
-	end
-):unwrap({
-	status = "yeah ofc it broke"
-})
