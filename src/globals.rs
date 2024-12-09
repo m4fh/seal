@@ -70,10 +70,11 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
         todo!("require aliases not impl yet")
         // Err(LuaError::external("invalid require path or not impl yet"))
     } else if path.starts_with("./") || path.starts_with("../") {
+        // TODO: unfuck this "path could not be extracted stuff"
         // regex should handle both windows and unix paths
-        let extract_path_re = Regex::new(r"^(.*[/\\])[^/\\]+\.luau$").unwrap();
-        let script: LuaTable = luau.globals().get("script")?;
-        let current_path: String = script.get("current_path")?;
+        let extract_path_re = Regex::new(r"^(.*.*[/\\])[^/\\]+\.luau$").unwrap();
+        let script: LuaTable = luau.globals().raw_get("script")?;
+        let current_path: String = script.raw_get("current_path")?;
 
         let captures = match extract_path_re.captures(&current_path) {
             Some(captures) => captures,
