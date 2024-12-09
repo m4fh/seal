@@ -17,6 +17,14 @@ print(
 	}:unwrap_json()
 )
 
+local response_with_status_code = http.get {
+	url = "https://jsonplaceholder.typicode.com/posts/200"
+}
+
+if response_with_status_code.ok then
+	assert(response_with_status_code.status_code == "404 Not Found")
+end
+
 -- attempt to call :unwrap() with missing arg
 local success, result = pcall(function()
 	local should_actually_error = http.get {

@@ -11,8 +11,10 @@ pub fn http_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
             match ureq::get(&url).call() {
                 Ok(mut response) => {
                     let body = response.body_mut().read_to_string().into_lua_err()?;
+                    let status_code = response.status_mut().to_string();
                     let result = TableBuilder::create(luau)?
                         .with_value("ok", true)?
+                        .with_value("status_code", status_code)?
                         .with_value("body", body.clone())?
                         .with_function("decode", {
                             move | luau: &Lua, _: LuaMultiValue | {
@@ -47,7 +49,11 @@ pub fn http_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                 }
             };
             // let mut get_builder = ureq::get(&url);
-            let mut get_builder = ureq::get(&url);
+            let mut get_builder = ureq::get(&url)
+                .config()
+                // can't seem to get 4xx or 5xx response bodies w/out setting this false
+                .http_status_as_error(false)
+                .build();
 
             if let LuaValue::Table(headers_table) = config.get("headers")? {
                 for pair in headers_table.pairs::<String, String>() {
@@ -87,7 +93,48 @@ pub fn http_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
 
             match send_result {
                 Ok(mut result) => {
+                    let mut status_code = result.status_mut().to_string();
+                    if status_code.len() == 3 {
+                        status_code = {
+                            match status_code.as_str() {
+                                "200" => "200 OK",
+                                "201" => "201 Created",
+                                "204" => "204 No Content",
+                                "301" => "301 Moved Permanently",
+                                "302" => "302 Found",
+                                "304" => "304 Not Modified",
+                                "307" => "307 Temporary Redirect",
+                                "308" => "308 Permanent Redirect",
+                                "400" => "400 Bad Request",
+                                "401" => "401 Unauthorized",
+                                "403" => "403 Forbidden",
+                                "404" => "404 Not Found",
+                                "405" => "405 Method Not Allowed",
+                                "409" => "409 Conflict",
+                                "410" => "410 Gone",
+                                "412" => "412 Precondition Failed",
+                                "415" => "415 Unsupported Media Type",
+                                "429" => "429 Too Many Requests",
+                                "500" => "500 Internal Server Error",
+                                "501" => "501 Not Implemented",
+                                "502" => "502 Bad Gateway",
+                                "503" => "503 Service Unavailable",
+                                "504" => "504 Gateway Timeout",
+                                "505" => "505 HTTP Version Not Supported",
+                                other => other,
+                            }.to_string()
+                        };
+                    }
                     let body = result.body_mut().read_to_string().unwrap_or(String::from(""));
+                    
+                    let status_code_ok = {
+                        #[allow(clippy::needless_bool)]
+                        if status_code.starts_with("2") || status_code.starts_with("3") {
+                            true
+                        } else {
+                            false
+                        } 
+                    };
                     
                     let json_decode_body = {
                         let body_clone = body.clone();
@@ -101,7 +148,8 @@ pub fn http_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                         }
                     };
                     let result = TableBuilder::create(luau)?
-                        .with_value("ok", true)?
+                        .with_value("ok", status_code_ok)?
+                        .with_value("status_code", status_code)?
                         .with_value("body", body)?
                         .with_function("decode", json_decode_body.to_owned())?
                         .with_function("unwrap_json", json_decode_body.to_owned())?
@@ -153,7 +201,10 @@ pub fn http_post(luau: &Lua, post_config: LuaValue) -> LuaValueResult {
                 }
             };
             // let mut get_builder = ureq::get(&url);
-            let mut post_builder = ureq::post(&url);
+            let mut post_builder = ureq::post(&url)
+                .config()
+                .http_status_as_error(false)
+                .build();
 
             if let LuaValue::Table(headers_table) = config.get("headers")? {
                 for pair in headers_table.pairs::<String, String>() {
@@ -184,16 +235,64 @@ pub fn http_post(luau: &Lua, post_config: LuaValue) -> LuaValueResult {
 
             match post_builder.send(body) {
                 Ok(mut result) => {
+                    let mut status_code = result.status_mut().to_string();
+                    if status_code.len() == 3 {
+                        status_code = {
+                            match status_code.as_str() {
+                                "200" => "200 OK",
+                                "201" => "201 Created",
+                                "204" => "204 No Content",
+                                "301" => "301 Moved Permanently",
+                                "302" => "302 Found",
+                                "304" => "304 Not Modified",
+                                "307" => "307 Temporary Redirect",
+                                "308" => "308 Permanent Redirect",
+                                "400" => "400 Bad Request",
+                                "401" => "401 Unauthorized",
+                                "403" => "403 Forbidden",
+                                "404" => "404 Not Found",
+                                "405" => "405 Method Not Allowed",
+                                "409" => "409 Conflict",
+                                "410" => "410 Gone",
+                                "412" => "412 Precondition Failed",
+                                "415" => "415 Unsupported Media Type",
+                                "429" => "429 Too Many Requests",
+                                "500" => "500 Internal Server Error",
+                                "501" => "501 Not Implemented",
+                                "502" => "502 Bad Gateway",
+                                "503" => "503 Service Unavailable",
+                                "504" => "504 Gateway Timeout",
+                                "505" => "505 HTTP Version Not Supported",
+                                other => other,
+                            }.to_string()
+                        };
+                    }
                     let body = result.body_mut().read_to_string().unwrap_or(String::from(""));
+                    
+                    let status_code_ok = {
+                        #[allow(clippy::needless_bool)]
+                        if status_code.starts_with("2") || status_code.starts_with("3") {
+                            true
+                        } else {
+                            false
+                        } 
+                    };
+                    
                     let json_decode_body = {
                         let body_clone = body.clone();
-                        move |luau: &Lua, _: LuaMultiValue| -> LuaValueResult {
-                            std_json::json_decode(luau, body_clone.to_owned())
+                        move |luau: &Lua, _: LuaMultiValue| {
+                            match std_json::json_decode(luau, body_clone.to_owned()) {
+                                Ok(response) => Ok(response),
+                                Err(err) => {
+                                    wrap_err!("NetResponse:decode() unable to decode response.body to json: {}", err)
+                                }
+                            }
                         }
                     };
                     let result = TableBuilder::create(luau)?
-                        .with_value("ok", true)?
-                        .with_value("body", body.clone())?
+                        .with_value("ok", status_code_ok)?
+                        .with_value("status_code", status_code)?
+                        .with_value("body", body)?
                         .with_function("decode", json_decode_body.to_owned())?
                         .with_function("unwrap_json", json_decode_body.to_owned())?
                         .build_readonly()?;
@@ -239,7 +338,10 @@ fn http_put(luau: &Lua, put_config: LuaValue) -> LuaValueResult {
                 }
             };
             // let mut get_builder = ureq::get(&url);
-            let mut put_builder = ureq::put(&url);
+            let mut put_builder = ureq::put(&url)
+                .config()
+                .http_status_as_error(false)
+                .build();
 
             if let LuaValue::Table(headers_table) = config.get("headers")? {
                 for pair in headers_table.pairs::<String, String>() {
@@ -270,16 +372,64 @@ fn http_put(luau: &Lua, put_config: LuaValue) -> LuaValueResult {
 
             match put_builder.send(body) {
                 Ok(mut result) => {
+                    let mut status_code = result.status_mut().to_string();
+                    if status_code.len() == 3 {
+                        status_code = {
+                            match status_code.as_str() {
+                                "200" => "200 OK",
+                                "201" => "201 Created",
+                                "204" => "204 No Content",
+                                "301" => "301 Moved Permanently",
+                                "302" => "302 Found",
+                                "304" => "304 Not Modified",
+                                "307" => "307 Temporary Redirect",
+                                "308" => "308 Permanent Redirect",
+                                "400" => "400 Bad Request",
+                                "401" => "401 Unauthorized",
+                                "403" => "403 Forbidden",
+                                "404" => "404 Not Found",
+                                "405" => "405 Method Not Allowed",
+                                "409" => "409 Conflict",
+                                "410" => "410 Gone",
+                                "412" => "412 Precondition Failed",
+                                "415" => "415 Unsupported Media Type",
+                                "429" => "429 Too Many Requests",
+                                "500" => "500 Internal Server Error",
+                                "501" => "501 Not Implemented",
+                                "502" => "502 Bad Gateway",
+                                "503" => "503 Service Unavailable",
+                                "504" => "504 Gateway Timeout",
+                                "505" => "505 HTTP Version Not Supported",
+                                other => other,
+                            }.to_string()
+                        };
+                    }
                     let body = result.body_mut().read_to_string().unwrap_or(String::from(""));
+                    
+                    let status_code_ok = {
+                        #[allow(clippy::needless_bool)]
+                        if status_code.starts_with("2") || status_code.starts_with("3") {
+                            true
+                        } else {
+                            false
+                        } 
+                    };
+                    
                     let json_decode_body = {
                         let body_clone = body.clone();
-                        move |luau: &Lua, _: LuaMultiValue| -> LuaValueResult {
-                            std_json::json_decode(luau, body_clone.to_owned())
+                        move |luau: &Lua, _: LuaMultiValue| {
+                            match std_json::json_decode(luau, body_clone.to_owned()) {
+                                Ok(response) => Ok(response),
+                                Err(err) => {
+                                    wrap_err!("NetResponse:decode() unable to decode response.body to json: {}", err)
+                                }
+                            }
                         }
                     };
                     let result = TableBuilder::create(luau)?
-                        .with_value("ok", true)?
-                        .with_value("body", body.clone())?
+                        .with_value("ok", status_code_ok)?
+                        .with_value("status_code", status_code)?
+                        .with_value("body", body)?
                         .with_function("decode", json_decode_body.to_owned())?
                         .with_function("unwrap_json", json_decode_body.to_owned())?
                         .build_readonly()?;
@@ -325,7 +475,10 @@ fn http_patch(luau: &Lua, patch_config: LuaValue) -> LuaValueResult {
                 }
             };
             // let mut get_builder = ureq::get(&url);
-            let mut patch_builder = ureq::patch(&url);
+            let mut patch_builder = ureq::patch(&url)
+                .config()
+                .http_status_as_error(false)
+                .build();
 
             if let LuaValue::Table(headers_table) = config.get("headers")? {
                 for pair in headers_table.pairs::<String, String>() {
@@ -356,16 +509,64 @@ fn http_patch(luau: &Lua, patch_config: LuaValue) -> LuaValueResult {
 
             match patch_builder.send(body) {
                 Ok(mut result) => {
+                    let mut status_code = result.status_mut().to_string();
+                    if status_code.len() == 3 {
+                        status_code = {
+                            match status_code.as_str() {
+                                "200" => "200 OK",
+                                "201" => "201 Created",
+                                "204" => "204 No Content",
+                                "301" => "301 Moved Permanently",
+                                "302" => "302 Found",
+                                "304" => "304 Not Modified",
+                                "307" => "307 Temporary Redirect",
+                                "308" => "308 Permanent Redirect",
+                                "400" => "400 Bad Request",
+                                "401" => "401 Unauthorized",
+                                "403" => "403 Forbidden",
+                                "404" => "404 Not Found",
+                                "405" => "405 Method Not Allowed",
+                                "409" => "409 Conflict",
+                                "410" => "410 Gone",
+                                "412" => "412 Precondition Failed",
+                                "415" => "415 Unsupported Media Type",
+                                "429" => "429 Too Many Requests",
+                                "500" => "500 Internal Server Error",
+                                "501" => "501 Not Implemented",
+                                "502" => "502 Bad Gateway",
+                                "503" => "503 Service Unavailable",
+                                "504" => "504 Gateway Timeout",
+                                "505" => "505 HTTP Version Not Supported",
+                                other => other,
+                            }.to_string()
+                        };
+                    }
                     let body = result.body_mut().read_to_string().unwrap_or(String::from(""));
+                    
+                    let status_code_ok = {
+                        #[allow(clippy::needless_bool)]
+                        if status_code.starts_with("2") || status_code.starts_with("3") {
+                            true
+                        } else {
+                            false
+                        } 
+                    };
+                    
                     let json_decode_body = {
                         let body_clone = body.clone();
-                        move |luau: &Lua, _: LuaMultiValue| -> LuaValueResult {
-                            std_json::json_decode(luau, body_clone.to_owned())
+                        move |luau: &Lua, _: LuaMultiValue| {
+                            match std_json::json_decode(luau, body_clone.to_owned()) {
+                                Ok(response) => Ok(response),
+                                Err(err) => {
+                                    wrap_err!("NetResponse:decode() unable to decode response.body to json: {}", err)
+                                }
+                            }
                         }
                     };
                     let result = TableBuilder::create(luau)?
-                        .with_value("ok", true)?
-                        .with_value("body", body.clone())?
+                        .with_value("ok", status_code_ok)?
+                        .with_value("status_code", status_code)?
+                        .with_value("body", body)?
                         .with_function("decode", json_decode_body.to_owned())?
                         .with_function("unwrap_json", json_decode_body.to_owned())?
                         .build_readonly()?;
@@ -429,16 +630,64 @@ fn http_delete(luau: &Lua, delete_config: LuaValue) -> LuaValueResult {
 
             match delete_builder.call() {
                 Ok(mut result) => {
+                    let mut status_code = result.status_mut().to_string();
+                    if status_code.len() == 3 {
+                        status_code = {
+                            match status_code.as_str() {
+                                "200" => "200 OK",
+                                "201" => "201 Created",
+                                "204" => "204 No Content",
+                                "301" => "301 Moved Permanently",
+                                "302" => "302 Found",
+                                "304" => "304 Not Modified",
+                                "307" => "307 Temporary Redirect",
+                                "308" => "308 Permanent Redirect",
+                                "400" => "400 Bad Request",
+                                "401" => "401 Unauthorized",
+                                "403" => "403 Forbidden",
+                                "404" => "404 Not Found",
+                                "405" => "405 Method Not Allowed",
+                                "409" => "409 Conflict",
+                                "410" => "410 Gone",
+                                "412" => "412 Precondition Failed",
+                                "415" => "415 Unsupported Media Type",
+                                "429" => "429 Too Many Requests",
+                                "500" => "500 Internal Server Error",
+                                "501" => "501 Not Implemented",
+                                "502" => "502 Bad Gateway",
+                                "503" => "503 Service Unavailable",
+                                "504" => "504 Gateway Timeout",
+                                "505" => "505 HTTP Version Not Supported",
+                                other => other,
+                            }.to_string()
+                        };
+                    }
                     let body = result.body_mut().read_to_string().unwrap_or(String::from(""));
+                    
+                    let status_code_ok = {
+                        #[allow(clippy::needless_bool)]
+                        if status_code.starts_with("2") || status_code.starts_with("3") {
+                            true
+                        } else {
+                            false
+                        } 
+                    };
+                    
                     let json_decode_body = {
                         let body_clone = body.clone();
-                        move |luau: &Lua, _: LuaMultiValue| -> LuaValueResult {
-                            std_json::json_decode(luau, body_clone.to_owned())
+                        move |luau: &Lua, _: LuaMultiValue| {
+                            match std_json::json_decode(luau, body_clone.to_owned()) {
+                                Ok(response) => Ok(response),
+                                Err(err) => {
+                                    wrap_err!("NetResponse:decode() unable to decode response.body to json: {}", err)
+                                }
+                            }
                         }
                     };
                     let result = TableBuilder::create(luau)?
-                        .with_value("ok", true)?
-                        .with_value("body", body.clone())?
+                        .with_value("ok", status_code_ok)?
+                        .with_value("status_code", status_code)?
+                        .with_value("body", body)?
                         .with_function("decode", json_decode_body.to_owned())?
                         .with_function("unwrap_json", json_decode_body.to_owned())?
                         .build_readonly()?;
