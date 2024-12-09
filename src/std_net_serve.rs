@@ -72,14 +72,77 @@ fn server_serve(luau: &Lua, serve_config: LuaValue) -> LuaValueResult {
 }
 
 fn handle_client(mut stream: TcpStream, handler_function: LuaFunction, luau: &Lua) -> LuaValueResult {
-    let lines: Vec<String> = {
-        let buf_reader = BufReader::new(&stream);
-        buf_reader
-            .lines()
-            .map(|result| result.unwrap())
-            .take_while(|line| !line.is_empty())
-            .collect()
+    let mut invalid_request = false;
+
+    let peer_address = match stream.peer_addr() {
+        Ok(address) => address.to_string(),
+        Err(err) => format!("Unknown ({})", err),
     };
+
+    let mut body: String = String::from("");
+
+    let lines: Vec<String> = {
+        let mut buf_reader = BufReader::new(&stream);
+        let mut content_length: Option<usize> = None;
+        let mut lines: Vec<String> = Vec::new();
+        
+        // handle header and break upon hitting \r\n\r\n aka time to start body
+        for header in buf_reader.by_ref().lines() {
+            match header {
+                Ok(header_line) => {
+                    if header_line.to_lowercase().contains("content-length") {
+                        if let Some(content_length_str) = header_line.split_once(':').map(|x| x.1) {
+                            if let Ok(length) = content_length_str.trim().parse::<usize>() {
+                                content_length = Some(length);
+                            } else {
+                                eprintln!("Failed to parse Content-Length");
+                            }
+                        } else {
+                            eprintln!("Content-Length header is malformed");
+                        }
+                    }
+                    // handle body here by reading exact content length and append it to lines vec
+                    if header_line.is_empty() {
+                        if let Some(length) = content_length {
+                            let mut body_buff = vec![0; length];
+                            let body_string = match buf_reader.read_exact(&mut body_buff) {
+                                Ok(_) => String::from_utf8_lossy(&body_buff).to_string(),
+                                Err(err) => err.to_string(),
+                            };
+                            body = body_string.clone();
+                            lines.push(body_string);
+                        }
+                        break;
+                    }
+                    lines.push(header_line);
+                },
+                Err(err) => {
+                    invalid_request = true;
+                    lines.push(format!("Error reading line: {}", err));
+                    break;
+                }
+            }
+        }
+        lines
+    };
+
+    if invalid_request {
+        // commented all of this out because it gets garbled when returned through https
+        
+        // let response = r#"{"ok": false, "err": "invalid utf-8 request"}"#;
+        // let response_headers = format!(
+        //     "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+        //     response.len()
+        // );
+
+        // if stream.write_all(response_headers.as_bytes()).is_err() {
+        //     return Ok(LuaNil); // prevent server from crashing if pipe break (ctrl c) in mid invalid request
+        // }
+        // if stream.write_all(response.as_bytes()).is_err() {
+        //     return Ok(LuaNil);
+        // }
+        return Ok(LuaNil);
+    }  
 
     let request_text = lines.join("\n");
     
@@ -120,14 +183,8 @@ fn handle_client(mut stream: TcpStream, handler_function: LuaFunction, luau: &Lu
         i += 1;
     }
 
-    // Body starts after the empty line following headers
-    let body = if i < lines.len() - 1 {
-        lines[i + 1..].join("\n")
-    } else {
-        String::new()
-    };
-
     let serve_request_info = TableBuilder::create(luau)?
+        .with_value("peer_address", peer_address)?
         .with_value("method", method)?
         .with_value("path", path)?
         .with_value("headers", headers_table)?

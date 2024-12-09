@@ -25,6 +25,16 @@ type ContentType =
 	| "Binary"
 	| string
 
+export type ServeRequest = {
+	peer_address: string,
+	method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+	path: string,
+	headers: {
+		[string]: string,
+	},
+	raw_text: string,
+	body: string,
+}
 export type ServeResponse = {
 	status_code: StatusCode,
 	content_type: ContentType,
@@ -38,16 +48,6 @@ export type ServeResponse = {
 	http_version: string?,
 	reason_phrase: string?,
 	redirect_url: string?
-}
-	
-export type ServeRequest = {
-	method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
-	path: string,
-	headers: {
-		[string]: string,
-	},
-	raw_text: string,
-	body: string,
 }
 	
 export type ServeConfig = {
