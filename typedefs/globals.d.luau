@@ -4,6 +4,8 @@ declare function p<T...>(...: T...): T...
 
 declare function pp<T...>(...: T...): T...
 
+declare function warn<T...>(...: T...): nil
+	
 declare script: {
 	entry_path: string,
 	current_path: string,

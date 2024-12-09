@@ -90,7 +90,7 @@ fn main() -> LuaResult<()> {
     }
 
     let luau: Lua = Lua::new();
-    luau.sandbox(true)?; // free performance boost
+    // luau.sandbox(true)?; // free performance boost
 
     let globals = luau.globals();
 

@@ -134,13 +134,31 @@ pub fn error(_luau: &Lua, error_value: LuaValue) -> LuaValueResult {
     wrap_err!("message: {:?}", error_value.to_string()?)
 }
 
-pub fn set_globals(luau: &Lua) -> LuaResult<LuaValue> {
-    let globals = luau.globals();
+pub fn warn(luau: &Lua, warn_value: LuaValue) -> LuaValueResult {
+    let formatted_text = std_io_output::format_output(luau, warn_value)?;
+    println!("{}{}{}", colors::BOLD_YELLOW, formatted_text, colors::RESET);
+    Ok(LuaNil)
+}
+
+const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub fn set_globals(luau: &Lua) -> LuaValueResult {
+    let globals: LuaTable = luau.globals();
+    let luau_version: LuaString = globals.raw_get("_VERSION")?;
     globals.set("require", luau.create_function(require)?)?;
     globals.set("error", luau.create_function(error)?)?;	
     globals.set("p", luau.create_function(std_io_output::debug_print)?)?;
     globals.set("pp", luau.create_function(std_io_output::pretty_print_and_return)?)?;
     globals.set("print", luau.create_function(std_io_output::pretty_print)?)?;
+    globals.set("warn", luau.create_function(warn)?)?;
+    globals.set("_VERSION", format!("seal {} | {}", SEAL_VERSION, luau_version.to_string_lossy()))?;
+    globals.set("_G", TableBuilder::create(luau)?
+        // .with_metatable(TableBuilder::create(luau)?
+        //     .with_value("__index", luau.globals())?
+        //     .build_readonly()?
+        // )?
+        .build()?
+    )?;
 
     Ok(LuaNil)
 }
