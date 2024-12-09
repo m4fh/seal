@@ -70,10 +70,10 @@ local res = if response.ok then response:decode() else {
     location = "where the seals live"
 }
 
--- you can also do this with unwrap!
+-- you can also unwrap_json!
 local res = http.get({
     url = "https://sealfinder.net/get",
-}):unwrap({ -- all :unwrap() methods take an optional default argument
+}):unwrap_json({ -- all :unwrap() methods take an optional default argument
     location = "where the seals live"
 })
 
@@ -129,9 +129,9 @@ Child threads have a global `channel` exposed, which you can use to send data to
 local http = require("@std/net/http")
 if channel then
     local data = channel.data :: { url: string }
-    local response = http.get({ url = data.url }):unwrap()
+    local response = http.get({ url = data.url }):unwrap_json()
     channel:send(response)
 end
 ```
 
-Notes on concurrency: because each Luau value (a table, number, or function) is attached specifically to a single VM, you cannot send values arbitrarily between VMs like if each thread got a function like a `task.spawn` or a Rust `thread::spawn`. To get around this, instead of allowing users to pass arbitrary upvalues between functions in different threads, we expose a low-level API for structured communication between threads, and handle serialization of values on our end.
+Notes on concurrency: because each Luau value (a table, number, or function) is attached specifically to a single Luau VM, you cannot send values arbitrarily between VMs. To get around this, instead of allowing users to pass arbitrary upvalues between functions in different threads, seal exposes a low-level API for structured communication between threads, and handles serialization/deserialization of values on our end.
