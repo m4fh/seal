@@ -100,7 +100,7 @@ impl<'luau> TableBuilder<'luau> {
         self.with_value(key, LuaValue::Function(f))
     }
 
-    /**
+    /*
         Adds a new key-value pair to the table, with an async function value.
 
         This will overwrite any value that already exists.
