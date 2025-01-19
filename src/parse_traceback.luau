@@ -1,4 +1,4 @@
-local colors = require("@std/colors")
+-- local colors = require("@std/colors")
 local env = require("@std/env")
 
 local cwd = env.current_working_directory

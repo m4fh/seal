@@ -1,6 +1,6 @@
 {
 	"luau-lsp.require.directoryAliases": {
-		"@std": "./typedefs/std/"
+		"@std": "./.typedefs/std/"
 	},
 	"luau-lsp.fflags.override": {
 		"LuauSolverV2": "true",
@@ -9,7 +9,7 @@
 		"LuauNewSolverPrePopulateClasses": "true"
 	},
 	"luau-lsp.completion.imports.suggestRequires": true,
-	"luau-lsp.types.definitionFiles": ["./typedefs/globals.d.luau"],
+	"luau-lsp.types.definitionFiles": ["./.typedefs/globals.d.luau"],
 	"code-runner.executorMap": {
 		"luau": "cargo build && ./target/debug/seal ",
 	},

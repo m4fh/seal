@@ -5,7 +5,7 @@ local fs = require("@std/fs")
 local new_settings = std.json.decode([[
 	{
 		"luau-lsp.require.directoryAliases": {
-			"@std": "./typedefs/std/",
+			"@std": "./.typedefs/std/",
 			"@workspace": "./"
 		},
 		"luau-lsp.fflags.override": {
@@ -15,7 +15,7 @@ local new_settings = std.json.decode([[
 			"LuauNewSolverPrePopulateClasses": "true"
 		},
 		"luau-lsp.completion.imports.suggestRequires": true,
-		"luau-lsp.types.definitionFiles": ["./typedefs/globals.d.luau"],
+		"luau-lsp.types.definitionFiles": ["./.typedefs/globals.d.luau"],
 	}
 ]])
 
@@ -74,7 +74,7 @@ end
 local default_luaurc = {
 	languageMode = "strict",
 	aliases = {
-		std = "./typedefs/std/"
+		std = "./.typedefs/std/"
 	}
 }
 

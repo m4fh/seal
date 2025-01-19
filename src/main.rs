@@ -29,7 +29,7 @@ mod globals;
 use crate::std_io_colors as colors;
 
 use include_dir::{include_dir, Dir};
-const TYPEDEFS_DIR: Dir = include_dir!("typedefs");
+const TYPEDEFS_DIR: Dir = include_dir!(".typedefs");
 
 type LuaValueResult = LuaResult<LuaValue>;
 
@@ -49,17 +49,17 @@ fn main() -> LuaResult<()> {
     if first_arg == "setup" {
         let cwd = std::env::current_dir().unwrap();
 
-        let typedefs_dir = cwd.join("typedefs");
+        let typedefs_dir = cwd.join(".typedefs");
         if let Err(err) = fs::create_dir(&typedefs_dir) {
             return wrap_err!("seal setup - error creating directory: {}", err);
         }
 
         match TYPEDEFS_DIR.extract(typedefs_dir) {
             Ok(()) => {
-                println!("seal setup typedefs in your current directory!");
+                println!("seal setup .typedefs in your current directory!");
             },
             Err(err) => {
-                return wrap_err!("seal setup - error extracting typedefs directory: {}", err);
+                return wrap_err!("seal setup - error extracting .typedefs directory: {}", err);
             }
         };
 
