@@ -1,4 +1,5 @@
 local output = require("@std/io/output")
+local time = require("@std/time")
 
 local thing = {
 	a = 2,
@@ -15,5 +16,15 @@ print(output.format(thing))
 local dformatted = output["debug-format"](thing)
 
 output["debug-print"](thing)
+
+output.clear()
+
+print("hi")
+
+output.write("hi")
+
+output.ewrite("bye")
+
+output.write("stasrtfwa")
 
 output.clear()

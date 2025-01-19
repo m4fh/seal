@@ -45,6 +45,17 @@ end
 
 --- clears the terminal stdout, aka `cls` or `clear`
 function output.clear(): nil
-	return nil
+	return nil :: any
 end
+
+--- writes contents to stdout
+function output.write(contents: string | buffer): nil
+	return nil :: any
+end
+
+--- writes contents to stderr
+function output.ewrite(contents: string | buffer): nil
+	return nil :: any
+end
+
 return output

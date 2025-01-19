@@ -1,6 +1,7 @@
 #![allow(clippy::single_char_add_str)]
 
 use std::process::Command;
+use std::io::{self, Write};
 
 use regex::Regex;
 use mlua::prelude::*;
@@ -211,9 +212,50 @@ pub fn output_clear(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
         "clear"
     };
     match Command::new(clear_command).spawn() {
-        Ok(_) => Ok(LuaNil),
+        Ok(_) => {
+            // this is pretty cursed, but yields long enough for the clear to have been completed 
+            // otherwise the next print() calls get erased
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            Ok(LuaNil)
+        },
         Err(err) => {
             wrap_err!("output.clear: unable to clear the terminal: {}", err)
+        }
+    }
+}
+
+pub fn output_write(_luau: &Lua, value: LuaValue) -> LuaValueResult {
+    match value {
+        LuaValue::String(text) => {
+            io::stdout().write_all(text.to_string_lossy().as_bytes()).unwrap();
+            io::stdout().flush().unwrap();
+            Ok(LuaNil)
+        },
+        LuaValue::Buffer(buffy) => {
+            io::stdout().write_all(&buffy.to_vec()).unwrap();
+            io::stdout().flush().unwrap();
+            Ok(LuaNil)
+        }
+        other => {
+            wrap_err!("io.output.write: expected string or buffer, got: {:#?}", other)
+        }
+    }
+}
+
+pub fn output_ewrite(_luau: &Lua, value: LuaValue) -> LuaValueResult {
+    match value {
+        LuaValue::String(text) => {
+            io::stderr().write_all(&text.as_bytes()).unwrap();
+            io::stderr().flush().unwrap();
+            Ok(LuaNil)
+        },
+        LuaValue::Buffer(buffy) => {
+            io::stderr().write_all(&buffy.to_vec()).unwrap();
+            io::stderr().flush().unwrap();
+            Ok(LuaNil)
+        }
+        other => {
+            wrap_err!("io.output.ewrite: expected string or buffer, got: {:#?}", other)
         }
     }
 }
@@ -222,6 +264,8 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("format", format_output)?
         .with_function("clear", output_clear)?
+        .with_function("write", output_write)?
+        .with_function("ewrite", output_ewrite)?
         .with_function("unformat", output_unformat)?
         .with_function("print-and-return", pretty_print_and_return)?
         .with_function("debug-print", debug_print)?
