@@ -25,7 +25,7 @@ fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
 								Vec::new()
 							},
 							_ => {
-								return wrap_err!("expected SpawnOptions args to be {{string}} or nil, got {:?}", luau_args);
+								return wrap_err!("expected RunOptions args to be {{string}} or nil, got {:?}", luau_args);
 							}
 						}
 					};
@@ -106,7 +106,7 @@ fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
 								match multivalue.pop_front() {
 									Some(value) => Ok(value),
 									None => {
-										wrap_err!("Attempt to :unwrap() an erred process.spawn without a default value!")
+										wrap_err!("Attempt to :unwrap() an erred process.run without a default value!")
 									}
 								}
 							})?
@@ -116,12 +116,12 @@ fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
 					Ok(LuaValue::Table(result_table))
 				}, 
 				other => {
-					wrap_err!("process.spawn expected table with field `program`, got: {:?}", other)
+					wrap_err!("process.run expected table with field `program`, got: {:?}", other)
 				}
 			}
 		},
 		_ => {
-			wrap_err!("process.spawn expected table of SpawnOptions ({{ program: string, args: {{ string }}?, etc. }}), got: {:?}", run_options)
+			wrap_err!("process.run expected table of RunOptions ({{ program: string, args: {{ string }}?, etc. }}), got: {:?}", run_options)
 		}
 	}
 	
