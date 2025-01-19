@@ -96,7 +96,6 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             }
         };
         let path = format!("{new_path}{path}");
-        let path_ref = path.clone();
 
         let require_path = {
             let path = Path::new(&path);
@@ -120,11 +119,22 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             }
         };
 
-        let data = fs::read_to_string(&require_path)?;
-        script.set("current_path", path_ref.to_owned())?;
-        let result: LuaValue = luau.load(data).set_name(&require_path).eval()?;
-        script.set("current_path", current_path.to_owned())?;
-        Ok(result)
+        let require_cache: LuaTable = luau.globals().raw_get("_REQUIRE_CACHE").unwrap();
+        let cached_result: Option<LuaValue> = require_cache.raw_get(require_path.clone())?;
+
+        if let Some(cached_result) = cached_result {
+            Ok(cached_result)
+        } else {
+            let data = fs::read_to_string(&require_path)?;
+            script.raw_set("current_path", require_path.to_owned())?;
+            let result: LuaValue = luau.load(data).set_name(&require_path).eval()?;
+            require_cache.raw_set(require_path.clone(), result)?;
+            // this is pretty cursed but let's just read the data we just wrote to the cache to get a new LuaValue
+            // that can be returned without breaking the borrow checker or cloning
+            let result = require_cache.raw_get(require_path.to_owned())?;
+            script.raw_set("current_path", current_path.to_owned())?;
+            Ok(result)
+        }
     } else {
         wrap_err!(
             "Invalid require path: Luau requires must start with a require alias (ex. \"@alias/path\") or relative path (ex. \"./path\").".to_owned() +
@@ -148,20 +158,21 @@ const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn set_globals(luau: &Lua) -> LuaValueResult {
     let globals: LuaTable = luau.globals();
     let luau_version: LuaString = globals.raw_get("_VERSION")?;
-    globals.set("require", luau.create_function(require)?)?;
-    globals.set("error", luau.create_function(error)?)?;	
-    globals.set("p", luau.create_function(std_io_output::debug_print)?)?;
-    globals.set("pp", luau.create_function(std_io_output::pretty_print_and_return)?)?;
-    globals.set("print", luau.create_function(std_io_output::pretty_print)?)?;
-    globals.set("warn", luau.create_function(warn)?)?;
-    globals.set("_VERSION", format!("seal {} | {}", SEAL_VERSION, luau_version.to_string_lossy()))?;
-    globals.set("_G", TableBuilder::create(luau)?
+    globals.raw_set("require", luau.create_function(require)?)?;
+    globals.raw_set("error", luau.create_function(error)?)?;	
+    globals.raw_set("p", luau.create_function(std_io_output::debug_print)?)?;
+    globals.raw_set("pp", luau.create_function(std_io_output::pretty_print_and_return)?)?;
+    globals.raw_set("print", luau.create_function(std_io_output::pretty_print)?)?;
+    globals.raw_set("warn", luau.create_function(warn)?)?;
+    globals.raw_set("_VERSION", format!("seal {} | {}", SEAL_VERSION, luau_version.to_string_lossy()))?;
+    globals.raw_set("_G", TableBuilder::create(luau)?
         // .with_metatable(TableBuilder::create(luau)?
         //     .with_value("__index", luau.globals())?
         //     .build_readonly()?
         // )?
         .build()?
     )?;
+    globals.raw_set("_REQUIRE_CACHE", TableBuilder::create(luau)?.build()?)?;
 
     Ok(LuaNil)
 }
