@@ -30,6 +30,7 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             "@std/serde/toml" => Ok(table(std_serde::create_toml(luau)?)),
             "@std/serde/yaml" => Ok(table(std_serde::create_yaml(luau)?)),
             "@std/serde/json" => Ok(table(std_json::create(luau)?)),
+            "@std/serde/hex" => Ok(table(std_serde::create_hex(luau)?)),
         
             "@std/net" => Ok(table(std_net::create(luau)?)),
             "@std/net/http" => Ok(table(std_net_http::create(luau)?)),
@@ -40,6 +41,8 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             "@std/crypt" => Ok(table(std_crypt::create(luau)?)),
             "@std/crypt/aes" => Ok(table(std_crypt::create_aes(luau)?)),
             "@std/crypt/rsa" => Ok(table(std_crypt::create_rsa(luau)?)),
+            "@std/crypt/hash" => Ok(table(std_crypt::create_hash(luau)?)),
+            "@std/crypt/password" => Ok(table(std_crypt::create_password(luau)?)),
         
             "@std/thread" => Ok(table(std_thread::create(luau)?)),
 
@@ -117,15 +120,15 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             }
         };
 
-        let data = fs::read_to_string(require_path)?;
+        let data = fs::read_to_string(&require_path)?;
         script.set("current_path", path_ref.to_owned())?;
-        let result: LuaValue = luau.load(data).eval()?;
+        let result: LuaValue = luau.load(data).set_name(&require_path).eval()?;
         script.set("current_path", current_path.to_owned())?;
         Ok(result)
     } else {
         wrap_err!(
-            "Invalid require path: Luau requires must start with a require alias (ex. \"@alias/path.luau\") or relative path (ex. \"./path.luau\").".to_owned() +
-            "\nNotes:\n  - ending a require with .luau is optional\n  - implicit relative paths (ex. require(\"file.luau\") without ./) are no longer allowed; see: https://github.com/luau-lang/rfcs/pull/56"
+            "Invalid require path: Luau requires must start with a require alias (ex. \"@alias/path\") or relative path (ex. \"./path\").".to_owned() +
+            "\nNotes:\n  - ending a require path with .luau is no longer recommended in Luau but supported by seal\n  - implicit relative paths (ex. require(\"file.luau\") without ./) are no longer allowed; see: https://github.com/luau-lang/rfcs/pull/56"
         )
     }
 }

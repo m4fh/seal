@@ -1,7 +1,11 @@
+use std::num::NonZeroU32;
+
 use crate::{table_helpers::TableBuilder, LuaValueResult, colors};
 use mlua::prelude::*;
 
+use ring::pbkdf2::{self, PBKDF2_HMAC_SHA256};
 use ring::rand::{SecureRandom, SystemRandom};
+use ring::digest::{Context, SHA256, SHA256_OUTPUT_LEN};
 use pkcs8::{EncodePrivateKey, EncodePublicKey, DecodePublicKey};
 
 use rsa::{pkcs8::{self, DecodePrivateKey}, Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
@@ -244,9 +248,139 @@ pub fn create_rsa(luau: &Lua) -> LuaResult<LuaTable> {
         .build_readonly()
 }
 
+fn hash_sha2_256(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    match value {
+        LuaValue::String(plaintext) => {
+            let mut context = Context::new(&SHA256);
+            let plaintext = plaintext.to_string_lossy();
+            let plaintext_bytes = plaintext.as_ref();
+            context.update(plaintext_bytes);
+            let rust_buffy: [u8; 32] = {
+                let hash_result = context.finish();
+                let hash_result = hash_result.as_ref();
+                let mut rust_buffy = [0u8; 32];
+                rust_buffy.copy_from_slice(hash_result);
+                rust_buffy
+            };
+            let result_buffy = luau.create_buffer(rust_buffy)?;
+            Ok(LuaValue::Buffer(result_buffy))
+        },
+        other => {
+            wrap_err!("crypt.hash.sha2: expected plaintext to be a string, got: {:?}", other)
+        }
+    }
+}
+
+pub fn create_hash(luau: &Lua) -> LuaResult<LuaTable> {
+    TableBuilder::create(luau)?
+        .with_function("sha2", hash_sha2_256)?
+        .build_readonly()
+}
+
+const PBKDF2_ITERATIONS: NonZeroU32 = NonZeroU32::new(100_000).unwrap();
+
+fn password_hash(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let password_raw: String = match value {
+        LuaValue::String(password_raw) => {
+            password_raw.to_string_lossy().to_string()
+        },
+        other => {
+            return wrap_err!("Expected password to hash to be a string, got: {:?}", other);
+        }
+    };
+    let rng = ring::rand::SystemRandom::new();
+    let mut salt = [0u8; 16];
+    match rng.fill(&mut salt) {
+        Ok(_salt) => (),
+        Err(_err) => {
+            return wrap_err!("crypt.password.hash: unable to salt password");
+        }
+    };
+
+    let mut hash = vec![0u8; SHA256_OUTPUT_LEN];
+    pbkdf2::derive(
+        PBKDF2_HMAC_SHA256,
+        PBKDF2_ITERATIONS, 
+        &salt, 
+        password_raw.as_bytes(), 
+        &mut hash,
+    );
+
+    let salt_buffy = luau.create_buffer(salt)?;
+    let hash_buffy = luau.create_buffer(hash)?;
+    Ok(LuaValue::Table(TableBuilder::create(luau)?
+        .with_value("salt", salt_buffy)?
+        .with_value("hash", hash_buffy)?
+        .build_readonly()?
+    ))
+}
+
+fn password_verify(_luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let verify_options = match value {
+        LuaValue::Table(options) => {
+            options
+        },
+        other => {
+            return wrap_err!("crypt.password.verify: Expected VerifyPasswordOptions: {{ raw_password: string, hashed_password: HashedPassword }}, got: {:#?}", other);
+        }
+    };
+    let raw_password = match verify_options.raw_get("raw_password")? {
+        LuaValue::String(password) => {
+            password.to_string_lossy()
+        },
+        LuaNil => {
+            return wrap_err!("crypt.password.verify: expected VerifyPasswordOptions to contain field 'raw_password', got nil.");
+        },
+        other => {
+            return wrap_err!("crypt.password.verify: expected VerifyPasswordOptions.raw_password to be a string, got: {:#?}", other);
+        },
+    };
+    let (salt_buffer, hash_buffer) = match verify_options.raw_get("hashed_password")? {
+        LuaValue::Table(hashed_password) => {
+            let salt_buffer = match hashed_password.raw_get("salt")? {
+                LuaValue::Buffer(salt) => salt,
+                other => {
+                    return wrap_err!("crypt.password.verify: expected VerifyPasswordOptions.hashed_password.salt to be a buffer, got: {:?}", other);
+                }
+            };
+            let hash_buffer = match hashed_password.raw_get("hash")? {
+                LuaValue::Buffer(hash_buffer) => hash_buffer,
+                other => {
+                    return wrap_err!("crypt.password.verify: expected VerifyPasswordOptions.hashed_password.hash to be a buffer, got: {:?}", other);
+                }
+            };
+            (salt_buffer, hash_buffer)
+        },
+        other => {
+            return wrap_err!("crypt.password.verify: expected VerifyPasswordOptions.hashed_password to be be a table with fields 'salt', and 'hash' (both buffers), got: {:?}", other);
+        }
+    };
+    let salt = salt_buffer.to_vec();
+    let hashed_password = hash_buffer.to_vec();
+
+    Ok(LuaValue::Boolean(
+        pbkdf2::verify(
+            PBKDF2_HMAC_SHA256,
+            PBKDF2_ITERATIONS,
+            &salt,
+            raw_password.as_bytes(),
+            &hashed_password
+        ).is_ok()
+    ))
+}
+
+pub fn create_password(luau: &Lua) -> LuaResult<LuaTable> {
+    TableBuilder::create(luau)?
+        .with_function("hash", password_hash)?
+        .with_function("verify", password_verify)?
+        .build_readonly()
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_value("aes", create_aes(luau)?)?
         .with_value("rsa", create_rsa(luau)?)?
+        .with_value("hash", create_hash(luau)?)?
+        .with_value("password", create_password(luau)?)?
         .build_readonly()
 }

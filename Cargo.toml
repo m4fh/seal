@@ -21,6 +21,7 @@ ring = "0.17.8"
 rsa = "0.9.7"
 rand = "0.8.5"
 simple_crypt = "0.2.3"
+hex = "0.4.3"
 # crossterm = "0.28.1"
 
 [profile.dev.package.num-bigint-dig]

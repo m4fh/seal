@@ -279,6 +279,56 @@ pub fn create_base64(luau: &Lua) -> LuaResult<LuaTable> {
         .build_readonly()
 }
 
+fn serde_hex_encode(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let data = match value {
+        LuaValue::Buffer(buffy) => {
+            buffy.to_vec()
+        },
+        LuaValue::String(data) => {
+            let data = data.as_bytes();
+            data.to_vec()
+        }
+        other => {
+            return wrap_err!("serde.hex.encode: expected buffer (or string), got: {:?}", other);
+        }
+    };
+    let rust_string = hex::encode(data);
+    Ok(LuaValue::String(
+        luau.create_string(rust_string)?
+    ))
+}
+
+fn serde_hex_decode(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    match value {
+        LuaValue::String(data) => {
+            let rust_string = match data.to_str() {
+                Ok(data) => data.to_string(),
+                Err(_err) => {
+                    return wrap_err!("serde.hex.decode: encoded string contains invalid UTF-8 data; strings passed to this function should already be encoded and shouldn't be able to contain invalid UTF-8 characters")
+                }
+            };
+            let decoded_hex = match hex::decode(rust_string) {
+                Ok(decoded) => decoded,
+                Err(err) => {
+                    return wrap_err!("serde.hex.decode: unable to decode hex string: {}", err);
+                }
+            };
+            let luau_hex_buffy = luau.create_buffer(decoded_hex)?;
+            Ok(LuaValue::Buffer(luau_hex_buffy))
+        },
+        other => {
+           wrap_err!("serde.hex.decode: expected string, got: {:?}", other) 
+        }
+    }
+}
+
+pub fn create_hex(luau: &Lua) -> LuaResult<LuaTable> {
+    TableBuilder::create(luau)?
+        .with_function("encode", serde_hex_encode)?
+        .with_function("decode", serde_hex_decode)?
+        .build_readonly()
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_value("base64", LuaValue::Table(
@@ -287,5 +337,6 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_value("json", LuaValue::Table(std_json::create(luau)?))?
         .with_value("toml", LuaValue::Table(create_toml(luau)?))?
         .with_value("yaml", LuaValue::Table(create_yaml(luau)?))?
+        .with_value("hex", LuaValue::Table(create_hex(luau)?))?
         .build_readonly()
 }
