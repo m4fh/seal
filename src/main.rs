@@ -1,7 +1,7 @@
 use mlua::prelude::*;
 use table_helpers::TableBuilder;
 use std::{fs, env, panic, path::Path};
-use regex::Regex;
+// use regex::Regex;
 
 mod table_helpers;
 mod std_io_output;
@@ -11,7 +11,7 @@ mod std_env;
 mod std_json;
 mod std_time;
 #[macro_use]
-mod err_handling;
+mod error_handling;
 mod std_io;
 mod std_io_colors;
 mod std_io_input;
@@ -179,28 +179,22 @@ fn main() -> LuaResult<()> {
 
     globals::set_globals(&luau)?;
 
-    match luau.load(luau_code).exec() {
+    let current_path: String = script.get("current_path")?;
+
+    match luau.load(luau_code).set_name(&current_path).exec() {
         Ok(()) => {
             std_process::handle_exit_callback(&luau, 0)?;
             Ok(())
         },
         Err(err) => {
-            let replace_main_re = Regex::new(r#"\[string \"[^\"]+\"\]"#).unwrap();
+            // let replace_main_re = Regex::new(r#"\[string \"[^\"]+\"\]"#).unwrap();
+            let mut err_message = error_handling::parse_traceback(err.to_string());
             let script: LuaTable = globals.get("script")?;
-            let current_path: String = script.get("current_path")?;
             let err_context: Option<String> = script.get("context")?;
-            let err_message = {
-                let err_message = replace_main_re
-                    .replace_all(&err.to_string(), format!("[\"{}\"]", current_path))
-                    .replace("_G.error", "error")
-                    .to_string();
-                if let Some(context) = err_context {
-                    let context = format!("{}[CONTEXT] {}{}{}\n", colors::BOLD_RED, context, colors::RESET, colors::RED);
-                    context + &err_message
-                } else {
-                    err_message
-                }
-            };
+            if let Some(context) = err_context {
+                let context = format!("{}[CONTEXT] {}{}: {}", colors::BOLD_RED, context, colors::RESET, colors::RED);
+                err_message = context + &err_message;
+            }
             panic!("{}", err_message);
         },
     }
