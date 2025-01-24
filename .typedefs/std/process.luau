@@ -20,19 +20,32 @@ export type RunOptions = {
 	shell: string?,
 }
 
-type SpawnOptionsConcurrent = {
-	program: string,
-	args: { string }?,
-	concurrency: "Concurrent",
+type ChildProcessStdout = {
+	read: (self: ChildProcessStdout, buffer_size: number?) -> string?,
+	lines: (self: ChildProcessStdout) -> (() -> string)
 }
 
-type SpawnHandleResult = {
+type ChildProcessStderr = {
+	read: (self: ChildProcessStderr, buffer_size: number?) -> string?,
+	lines: (self: ChildProcessStderr) -> (() -> string)
+}
 
+type ChildProcessStdin = {
+	write: (self: ChildProcessStdin, data: string) -> nil
+}
+
+export type ChildProcess = {
+	id: number,
+	alive: (self: ChildProcess) -> boolean,
+	kill: (self: ChildProcess) -> nil,
+	stdout: ChildProcessStdout,
+	stderr: ChildProcessStderr,
+	stdin: ChildProcessStdin,
 }
 
 type process = {
 	--[=[
-	Runs a program.
+	Runs a program, yields until it completes, and returns its results.
 
 	Takes a RunOptions table:
 	```luau
@@ -72,8 +85,25 @@ type process = {
 	```
 	]=]
 	shell: (command: string) -> RunResult,
+	--[=[
+	Spawns a long-running process in a non-blocking manner, returns a `ChildProcess` that contains handles to the spawned process' stdout, stderr, and stdin.
+
+	## Usage
+	```luau
+	local process = require("@std/process")
+	local child = process.spawn({
+		program = "someutil --watch",
+		shell = "sh",
+	})
+	
+	for line in child.stdout:lines() do
+		local thing_changed = line:match("([%w]+) changed!")
+		print(`Change detected: {thing_changed}`)
+	end
+	```
+	]=]
+	spawn: (options: RunOptions) -> ChildProcess,
 	setexitcallback: ((number) -> ()) -> (),
-	watch: (RunOptions) -> any,
 	exit: (code: number?) -> never,
 }
 

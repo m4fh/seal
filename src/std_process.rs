@@ -1,4 +1,7 @@
-use std::process::{self, Command};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::process::{self, Command, Stdio};
+// use std::thread;
+use std::sync::{Arc, Mutex};
 
 use mlua::prelude::*;
 use crate::{std_env, colors, table_helpers::TableBuilder, wrap_err, LuaValueResult};
@@ -10,6 +13,7 @@ struct RunOptions {
 }
 
 impl RunOptions {
+    #[allow(dead_code)]
     fn new(program: String, args: Vec<String>, shell: Option<String>) -> Self {
         RunOptions {
             program,
@@ -144,6 +148,210 @@ fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
     }
 }
 
+fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
+    let options = match spawn_options {
+        LuaValue::Table(run_options) => {
+            RunOptions::from_table(luau, run_options)?
+        },
+        LuaValue::Nil => {
+            return wrap_err!("process.spawn expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got nil.");
+        },
+        other => {
+            return wrap_err!("process.spawn expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got: {:#?}", other);
+        }
+    };
+
+    let mut child = {
+        if let Some(shell) = options.shell {
+            Command::new(shell.clone())
+                .arg(
+                    if shell.as_str() == "pwsh" || shell.as_str() == "powershell" {
+                        "-Command"
+                    } else {
+                        "-c"
+                    }
+                )
+                .arg(options.program)
+                .arg(options.args.join(" "))
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("process.spawn failed to execute process")
+        } else {
+            Command::new(options.program)
+                .args(options.args)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("process.run failed to execute process")
+        }
+    };
+
+    let child_id = child.id();
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+    let stdin = child.stdin.take().unwrap();
+
+    let arc_child = Arc::new(Mutex::new(child));
+    let arc_stdout = Arc::new(Mutex::new(stdout));
+    let arc_stderr = Arc::new(Mutex::new(stderr));
+    let arc_stdin = Arc::new(Mutex::new(stdin));
+
+    let stdout_handle = TableBuilder::create(luau)?
+        .with_function("read", {
+            let stdout = Arc::clone(&arc_stdout);
+            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                let buffer_size = match multivalue.pop_back() {
+                    Some(LuaValue::Integer(i)) => i as usize,
+                    Some(LuaValue::Number(n)) => {
+                        return wrap_err!("ChildProcess.stdout:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                    },
+                    _ => 32,
+                };
+                let mut stdout = stdout.lock().unwrap();
+                let mut buffy = vec![0; buffer_size];
+                match stdout.read_exact(&mut buffy) {
+                    Ok(_) => {
+                        let result_string = luau.create_string(buffy)?;
+                        Ok(LuaValue::String(result_string))
+                    },
+                    Err(_err) => Ok(LuaValue::Nil)
+                }
+            }
+        })?
+        .with_function("lines", {
+            let stdout = Arc::clone(&arc_stdout);
+            move | luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
+                Ok(LuaValue::Function(luau.create_function({
+                    let stdout = Arc::clone(&stdout);
+                    move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
+                        let mut stdout = stdout.lock().unwrap();
+                        let mut reader = BufReader::new(stdout.by_ref());
+                        let mut new_line = String::from("");
+                        match reader.read_line(&mut new_line) {
+                            Ok(0) => {
+                                Ok(LuaNil)
+                            },
+                            Ok(_other) => {
+                                Ok(LuaValue::String(luau.create_string(new_line.trim_end())?))
+                            },
+                            Err(err) => {
+                                wrap_err!("unable to read line: {:#?}", err)
+                            }
+                        }
+                    }
+                })?))
+                // let line = reader.read_line(buf)
+            }
+        })?
+        .build_readonly()?;
+
+    let stderr_handle = TableBuilder::create(luau)?
+        .with_function("read", {
+            let stderr = Arc::clone(&arc_stderr);
+            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                let buffer_size = match multivalue.pop_back() {
+                    Some(LuaValue::Integer(i)) => i as usize,
+                    Some(LuaValue::Number(n)) => {
+                        return wrap_err!("ChildProcess.stderr:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                    },
+                    _ => 32,
+                };
+                let mut stderr = stderr.lock().unwrap();
+                let mut buffy = vec![0; buffer_size];
+                match stderr.read_exact(&mut buffy) {
+                    Ok(_) => {
+                        let result_string = luau.create_string(buffy)?;
+                        Ok(LuaValue::String(result_string))
+                    },
+                    Err(_err) => Ok(LuaValue::Nil)
+                }
+            }
+        })?
+        .with_function("lines", {
+            let stderr = Arc::clone(&arc_stderr);
+            move | luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
+                Ok(LuaValue::Function(luau.create_function({
+                    let stderr = Arc::clone(&stderr);
+                    move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
+                        let mut stderr = stderr.lock().unwrap();
+                        let mut reader = BufReader::new(stderr.by_ref());
+                        let mut new_line = String::from("");
+                        match reader.read_line(&mut new_line) {
+                            Ok(0) => {
+                                Ok(LuaNil)
+                            },
+                            Ok(_other) => {
+                                Ok(LuaValue::String(luau.create_string(new_line.trim_end())?))
+                            },
+                            Err(err) => {
+                                wrap_err!("unable to read line: {:#?}", err)
+                            }
+                        }
+                    }
+                })?))
+                // let line = reader.read_line(buf)
+            }
+        })?
+        .build_readonly()?;
+
+    let stdin_handle = TableBuilder::create(luau)?
+        .with_function("write", {
+            let stdin = Arc::clone(&arc_stdin);
+            move | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                let _handle = multivalue.pop_front();
+                let stuff_to_write = match multivalue.pop_back() {
+                    Some(LuaValue::String(stuff)) => stuff.to_string_lossy(),
+                    Some(other) => {
+                        return wrap_err!("ChildProcess.stdin:write(data) expected data to be a string, got: {:?}", other);
+                    },
+                    None => {
+                        return wrap_err!("ChildProcess.stdin:write(data) was called without argument data");
+                    }
+                };
+                let mut stdin = stdin.lock().unwrap();
+                match stdin.write_all(stuff_to_write.as_bytes()) {
+                    Ok(_) => Ok(LuaNil),
+                    Err(err) => wrap_err!("ChildProcess.stdin:write: error writing to stdin: {:?}", err)
+                }
+            }
+        })?
+        .build_readonly()?;
+    
+    let child_handle = TableBuilder::create(luau)?
+        .with_value("id", child_id)?
+        .with_function("alive",{
+            let child = Arc::clone(&arc_child);
+            move | _luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
+                let mut child = child.lock().unwrap();
+                match child.try_wait().unwrap() {
+                    Some(_status_code) => Ok(LuaValue::Boolean(false)),
+                    None => Ok(LuaValue::Boolean(true)),
+                }
+            }
+        })?
+        .with_function("kill",{
+            let child = Arc::clone(&arc_child);
+            move | _luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
+                let mut child = child.lock().unwrap();
+                match child.kill() {
+                    Ok(_) => Ok(LuaValue::Nil),
+                    Err(err) => {
+                        wrap_err!("ChildProcess could not be killed: {:?}", err)
+                    }
+                }
+            }
+        })?
+        .with_value("stdout", LuaValue::Table(stdout_handle))?
+        .with_value("stderr", stderr_handle)?
+        .with_value("stdin", stdin_handle)?
+        .build_readonly()?;
+
+    Ok(LuaValue::Table(child_handle))
+}
+
 fn process_shell(luau: &Lua, shell_command: LuaValue) -> LuaValueResult {
     let shell_path = std_env::get_current_shell();
     match shell_command {
@@ -222,6 +430,7 @@ fn exit(luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("run", process_run)?
+        .with_function("spawn", process_spawn)?
         .with_function("shell", process_shell)?
         .with_function("setexitcallback", set_exit_callback)?
         .with_function("exit", exit)?
