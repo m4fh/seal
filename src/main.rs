@@ -1,6 +1,7 @@
 use mlua::prelude::*;
 use table_helpers::TableBuilder;
 use std::{fs, env, panic, path::Path};
+use std::io;
 // use regex::Regex;
 
 mod table_helpers;
@@ -35,48 +36,7 @@ type LuaValueResult = LuaResult<LuaValue>;
 
 fn main() -> LuaResult<()> {
     let args: Vec<String> = env::args().collect();
-    if args.len() <= 1 {
-        panic!("seal: did you forget to pass me a file?")
-    }
 
-    let first_arg = args[1].clone();
-
-    if first_arg == "--help" || first_arg == "-h" {
-        println!("seal help will be implemented SOON(TM)");
-        return Ok(());
-    }
-    
-    if first_arg == "setup" {
-        let cwd = std::env::current_dir().unwrap();
-
-        let typedefs_dir = cwd.join(".typedefs");
-        if let Err(err) = fs::create_dir(&typedefs_dir) {
-            return wrap_err!("seal setup - error creating directory: {}", err);
-        }
-
-        match TYPEDEFS_DIR.extract(typedefs_dir) {
-            Ok(()) => {
-                println!("seal setup .typedefs in your current directory!");
-            },
-            Err(err) => {
-                return wrap_err!("seal setup - error extracting .typedefs directory: {}", err);
-            }
-        };
-
-        let settings_setup = include_str!("./settings_setup.luau");
-        let temp_luau = Lua::new();
-        globals::set_globals(&temp_luau)?;
-        match temp_luau.load(settings_setup).exec() {
-            Ok(_) => {
-                println!("seal setup .vscode definitions in your current directory!");
-                return Ok(());
-            },
-            Err(err) => {
-                panic!("{}", err)
-            }
-        }
-    }
-    
     if args.len() == 3 && args[2] == "--debug" {
         // don't mess with panic formatting
     } else {
@@ -89,6 +49,21 @@ fn main() -> LuaResult<()> {
         }));
     }
 
+    if args.len() <= 1 {
+        panic!("seal: did you forget to pass me a file?")
+    }
+
+    let first_arg = args[1].clone();
+
+    if first_arg == "--help" || first_arg == "-h" {
+        println!("seal help will be implemented SOON(TM)");
+        return Ok(());
+    }
+    
+    if first_arg == "setup" {
+        return seal_setup();
+    }
+    
     let luau: Lua = Lua::new();
     // luau.sandbox(true)?; // free performance boost
 
@@ -197,6 +172,51 @@ fn main() -> LuaResult<()> {
             }
             panic!("{}", err_message);
         },
+    }
+}
+
+fn seal_setup() -> LuaResult<()> {
+    let cwd = match std::env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::NotFound => { // yes this happened in testing
+                    return wrap_err!("seal setup - your current directory does not exist (try reloading your terminal/editor?)");
+                },
+                io::ErrorKind::PermissionDenied => {
+                    return wrap_err!("seal setup - insufficient permissions to access your current directory");
+                },
+                other => {
+                    return wrap_err!("seal setup - error getting your current directory: {}", other);
+                }
+            }
+        }
+    };
+
+    let typedefs_dir = cwd.join(".typedefs");
+    if let Err(err) = fs::create_dir(&typedefs_dir) {
+        return wrap_err!("seal setup - error creating directory: {}", err);
+    }
+
+    match TYPEDEFS_DIR.extract(typedefs_dir) {
+        Ok(()) => {
+            println!("seal setup .typedefs in your current directory!");
+        },
+        Err(err) => {
+            return wrap_err!("seal setup - error extracting .typedefs directory: {}", err);
+        }
+    };
+
+    let seal_setup_settings = include_str!("./scripts/seal_setup_settings.luau");
+    let temp_luau = Lua::new();
+    globals::set_globals(&temp_luau)?;
+    match temp_luau.load(seal_setup_settings).exec() {
+        Ok(_) => {
+            Ok(())
+        },
+        Err(err) => {
+            wrap_err!("Hit an error running seal_setup_settings.luau: {}", err)
+        }
     }
 }
 
