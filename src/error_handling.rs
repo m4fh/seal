@@ -6,7 +6,7 @@ use crate::globals;
 type LuaValueResult = LuaResult<LuaValue>;
 
 pub fn parse_traceback(raw_traceback: String) -> String {
-    let parse_traceback = include_str!("./parse_traceback.luau");
+    let parse_traceback = include_str!("./scripts/parse_traceback.luau");
     let luau_for_traceback = Lua::new();
     globals::set_globals(&luau_for_traceback).unwrap();
     match luau_for_traceback.load(parse_traceback).eval() {
