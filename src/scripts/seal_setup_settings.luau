@@ -74,7 +74,7 @@ end
 local function update_luaurc()
 	local luaurc = {}
 
-	local luaurc_file = fs.find { file = ".luaurc" } :: FileEntry?
+	local luaurc_file = fs.file(".luaurc")
 	if luaurc_file then
 		luaurc = json.decode(luaurc_file:read())
 		luaurc.languageMode = luaurc.languageMode or default_luaurc.languageMode
@@ -94,7 +94,7 @@ local function update_luaurc()
 end
 
 local function create_src_dir()
-	local src_dir = fs.find { directory = "src" } :: DirectoryEntry?
+	local src_dir = fs.dir("src")
 	if not src_dir then
 		local src_dir = fs.create { 
 			directory = "src"
@@ -109,7 +109,7 @@ local function create_src_dir()
 end
 
 local function init_git_repository()
-	if not fs.find { directory = ".git" } then
+	if not fs.exists(".git") then
 		local git_version_result = process.run { -- check if git exists on system
 			program = "git",
 			args = { "--version" },
