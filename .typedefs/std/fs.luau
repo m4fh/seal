@@ -1,7 +1,7 @@
 --[=[
 The greatest simplest filesystem standardlib that's ever lived (in luau).
 
-### Usage:
+## Usage
 
 ```luau
 local fs = require("@std/fs")
@@ -14,11 +14,17 @@ for path, entry in fs.entries("./somedir") do
 	end
 end
 
+-- check if a file exists and read it
+local f = fs.file("./f.txt")
+local content = if f then f:read() else ""
+
 -- Quick reference:
 type fs = {
 	readfile: (path: string) -> string,
 	writefile: (WriteFileOptions) -> (),
 	find: (string | {directory: string } | {file: string}) -> Entry?,
+	file: (path: string) -> FileEntry?,
+	dir: (path: string) -> DirectoryEntry?,
 	entries: (directory: string) -> { [string]: Entry },
 	list: (directory: string) -> {string},
 	create: (CreateOptions) -> (),
@@ -65,6 +71,10 @@ type fs = {
 	writefile: (WriteFileOptions) -> (),
 	--- finds an Entry if the requested file/directory exists, else returns nil
 	find: (string | {directory: string } | {file: string}) -> Entry?,
+	--- finds a FileEntry at a given path or nil if the file not found. Equivalent to fs.find { file: string }
+	file: (path: string) -> FileEntry?,
+	--- finds a DirectoryEntry at a given path or nil if the directory not found. Equivalent to fs.find { directory: string }
+	dir: (path: string) -> DirectoryEntry?,
 	--- returns a dictionary of Entries by path
 	entries: (directory: string) -> {
 		[string]: Entry
@@ -190,25 +200,54 @@ export type FindOptions = {
 }
 
 --[=[
-Returns an `Entry` if a file/directory is found at the requested path, otherwise returns `nil`.
+	Returns an `Entry` if a file/directory is found at the requested path, otherwise returns `nil`.
 
-Usage:
-```luau
--- find both files and directories
-local dir = fs.find("./typedefs") 
-if dir.type == "Directory" then
-	print(dir:list())
-end
+	Usage:
+	```luau
+	-- find both files and directories
+	local dir = fs.find("./typedefs") 
+	if dir.type == "Directory" then
+		print(dir:list())
+	end
 
--- find only files
-local file = fs.find { file = "./typedefs" }
-assert(file == nil) -- ./typedefs is a directory, not a file!!
+	-- find only files
+	local file = fs.find { file = "./typedefs" }
+	assert(file == nil) -- ./typedefs is a directory, not a file!!
 
--- find only directories
-local dir = fs.find { directory = "./src" }
-```
+	-- find only directories
+	local dir = fs.find { directory = "./src" }
+	```
 ]=]
 function fs.find(path: string | FindOptions): Entry?
+	return nil :: any
+end
+
+--[=[
+	Finds a `DirectoryEntry` at the requested `path` if one exists, otherwise returns nil. Ergonomic alternative to `fs.find { directory: string }`
+
+	## Usage
+	```luau
+	local tests_dir = fs.dir("./tests")
+	if tests_dir then
+		for name, entry in tests_dir:entries() do
+			-- run test
+		end
+	end
+	```
+]=]
+function fs.dir(path: string): DirectoryEntry?
+	return nil :: any
+end
+--[=[
+	Finds a `FileEntry` at the requested `path` if one exists, otherwise returns nil. Ergonomic alternative to `fs.find { file: string }`
+
+	## Usage
+	```luau
+	local gitignore = fs.file(".gitignore")
+	local ignored_files: { string } = if gitignore then gitignore:read():split("\n") else {}
+	```
+]=]
+function fs.file(path: string): FileEntry?
 	return nil :: any
 end
 

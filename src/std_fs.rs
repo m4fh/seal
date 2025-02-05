@@ -494,6 +494,8 @@ pub fn fs_remove(_luau: &Lua, remove_options: LuaValue) -> LuaValueResult {
     }
 }
 
+
+// TODO: refactor/fix this. 
 fn fs_find(luau: &Lua, query: LuaValue) -> LuaValueResult {
     match query {
         LuaValue::String(q) => {
@@ -536,6 +538,82 @@ fn fs_find(luau: &Lua, query: LuaValue) -> LuaValueResult {
         other => {
             wrap_err!("fs.find expected string or FindQuery, got: {:?}", other)
         }
+    }
+}
+
+fn fs_find_file(luau: &Lua, path: LuaValue) -> LuaValueResult {
+    let path = match path {
+        LuaValue::String(path) => {
+            path.to_string_lossy()
+        },
+        other => {
+            return wrap_err!("fs.file expected string (path of the file to look for), got: {:#?}", other);
+        }
+    };
+
+    let metadata = match fs::metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::NotFound => {
+                    return Ok(LuaNil);
+                },
+                io::ErrorKind::PermissionDenied => {
+                    return wrap_err!("fs.file: attempted to find file at path '{}' but permission denied", path);
+                },
+                other => {
+                    return wrap_err!("fs.file: error getting metadata for file at path '{}': {:?}", path, other);
+                }
+            }
+        }
+    };
+
+    if metadata.is_file() {
+        Ok(LuaValue::Table(
+            create_entry_table(luau, &path)?
+        ))
+    } else if metadata.is_dir() {
+        wrap_err!("fs.file: requested file at path '{}' is actually a directory", path)
+    } else {
+        unreachable!()
+    }
+}
+
+fn fs_find_dir(luau: &Lua, path: LuaValue) -> LuaValueResult {
+    let path = match path {
+        LuaValue::String(path) => {
+            path.to_string_lossy()
+        },
+        other => {
+            return wrap_err!("fs.dir expected string (path of the directory to look for), got: {:#?}", other);
+        }
+    };
+
+    let metadata = match fs::metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::NotFound => {
+                    return Ok(LuaNil);
+                },
+                io::ErrorKind::PermissionDenied => {
+                    return wrap_err!("fs.dir: attempted to find directory at path '{}' but permission denied", path);
+                },
+                other => {
+                    return wrap_err!("fs.dir: error getting metadata for directory at path '{}': {:?}", path, other);
+                }
+            }
+        }
+    };
+
+    if metadata.is_dir() {
+        Ok(LuaValue::Table(
+            create_entry_table(luau, &path)?
+        ))
+    } else if metadata.is_file() {
+        wrap_err!("fs.dir: requested directory at path '{}' is actually a file", path)
+    } else {
+        unreachable!()
     }
 }
 
@@ -589,6 +667,8 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("list", fs_listdir)?
         .with_function("entries", fs_entries)?
         .with_function("find", fs_find)?
+        .with_function("file", fs_find_file)?
+        .with_function("dir", fs_find_dir)?
         .with_function("create", fs_create)?
         .with_function("readbytes", fs_readbytes)?
         .build_readonly()?;
