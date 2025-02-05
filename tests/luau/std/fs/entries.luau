@@ -1,3 +1,4 @@
+--!nolint LocalShadow
 local fs = require("@std/fs")
 
 for path, entry in fs.entries(".") do
@@ -33,4 +34,18 @@ do
 		fs.entries("")
 		return nil
 	end):expect_err("No such file or directory")
+end
+
+-- append to file
+local appendfile = fs.create { file = {
+	name = "./tests/data/appendfile.txt",
+	content = "startercontent"
+}} :: fs.FileEntry
+
+if appendfile then
+	local content = (appendfile :: fs.FileEntry):read() :: string
+	assert(content == "startercontent", "saving file apparently didnt write 'startercontent'?")
+	local appendfile: fs.FileEntry = appendfile
+	appendfile:append("andmore")
+	assert(appendfile:read() == "startercontentandmore", "appendfile:append didn't work right?")
 end

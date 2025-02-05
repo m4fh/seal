@@ -136,6 +136,7 @@ export type FileEntry = {
 	]=]
 	readlines: (self: FileEntry) -> () -> (number, string),
 	read: (self: FileEntry) -> string,
+	append: (self: FileEntry, content: string | buffer) -> (),
 	remove: (self: FileEntry) -> (),
 }
 

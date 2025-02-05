@@ -1,7 +1,7 @@
 use mlua::prelude::*;
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, Read, Seek};
-use std::{fs, io, path};
+use std::{fs::{self, OpenOptions}, io, path};
 use std::path::{Path, PathBuf};
 use io::Write;
 
@@ -367,54 +367,6 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
                     }
                 }   
             })?
-            // .with_function("readlines", {
-            //     let entry_path = entry_path.to_string();
-            //     move | luau, mut multivalue: LuaMultiValue | -> LuaValueResult {
-            //         let file = match fs::File::open(&entry_path) {
-            //             Ok(file) => file,
-            //             Err(err) =>{
-            //                 return wrap_err!("FileEntry:readlines: error opening file: {}", err);
-            //             }
-            //         };
-                    
-            //         let reader = io::BufReader::new(file);
-            //         match multivalue.pop_back() {
-            //             Some(LuaValue::Function(handler_function)) => {
-            //                 for (index, line) in reader.lines().enumerate() {
-            //                     match line {
-            //                         Ok(line) => {
-            //                             let line = line.into_lua(luau)?;
-            //                             let index = LuaValue::Integer((index + 1) as i32);
-            //                             let args = LuaMultiValue::from_vec(vec![line, index]);
-            //                             match handler_function.call::<Option<LuaString>>(args) {
-            //                                 Ok(Some(s)) => {
-            //                                     match s.to_string_lossy().as_str() {
-            //                                         "break" => break,
-            //                                         _other => continue,
-            //                                     }
-            //                                 },
-            //                                 Ok(None) => continue,
-            //                                 Err(err) => {
-            //                                     return wrap_err!("error calling readlines callback: {}", err);
-            //                                 }
-            //                             }
-            //                         },
-            //                         Err(err) => {
-            //                             return wrap_err!("error reading lines: {}", err);
-            //                         }
-            //                     }
-            //                 }
-            //                 Ok(LuaNil)
-            //             },
-            //             Some(other) => {
-            //                 wrap_err!("expected function, got: {:#?}", other)
-            //             },
-            //             None => {
-            //                 wrap_err!("expected function, got: nothing")
-            //             }
-            //         }
-            //     }
-            // })?
             .with_function("readlines",{
                 let path = path.clone();
                 move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
@@ -460,6 +412,43 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
                 let entry_path = entry_path.to_string();
                 move | _luau, _s: LuaMultiValue | {
                     Ok(fs::remove_file(entry_path.clone())?)
+                }
+            })?
+            .with_function("append", {
+                let path = path.clone();
+                move | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                    let content = match multivalue.pop_back() {
+                        Some(content) => content,
+                        None => {
+                            return wrap_err!("FileEntry:append() expected content to append (string or buffer), got nothing");
+                        }
+                    };
+
+                    let mut file = match OpenOptions::new()
+                        .append(true)
+                        .open(&path) {
+                            Ok(file) => file,
+                            Err(err) => {
+                                return wrap_err!("FileEntry:append() error opening up file: {}", err);
+                            }
+                        };
+                    let content = match content {
+                        LuaValue::String(content) => {
+                            let content = content.to_string_lossy();
+                            content.as_bytes().to_owned()
+                        },
+                        LuaValue::Buffer(content) => content.to_vec(),
+                        other => {
+                            return wrap_err!("FileEntry:append(content) expected content to be a string or buffer, got: {:#?}", other);
+                        }
+                    };
+
+                    match file.write_all(&content) {
+                        Ok(_) => Ok(LuaNil),
+                        Err(err) => {
+                            wrap_err!("FileEntry:append: error writing to file: {}", err)
+                        }
+                    }
                 }
             })?
             .build_readonly()
