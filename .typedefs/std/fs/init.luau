@@ -34,6 +34,7 @@ type fs = {
 }
 export type Entry = DirectoryEntry | FileEntry
 export type DirectoryEntry = {
+	name: string?,
 	type: "Directory",
 	path: string,
 	list: (self: DirectoryEntry) -> {string},
@@ -41,6 +42,7 @@ export type DirectoryEntry = {
 	remove: (self: DirectoryEntry) -> (),
 }
 export type FileEntry = {
+	name: string?,
 	type: "File",
 	path: string,
 	extension: string,
@@ -99,6 +101,7 @@ export type WriteFileOptions = {
 export type Entry = (DirectoryEntry | FileEntry)
 
 export type DirectoryEntry = {
+	name: string?,
 	type: "Directory",
 	path: string,
 	list: (self: DirectoryEntry) -> {string},
@@ -111,6 +114,7 @@ export type DirectoryEntry = {
 }
 
 export type FileEntry = {
+	name: string?,
 	type: "File",
 	path: string,
 	extension: string,

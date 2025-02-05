@@ -233,10 +233,21 @@ fn does_file_exist(file_path: &str) -> bool {
 }
 
 fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
+    let path = Path::new(&entry_path);
+    let base_name = {
+        match path.file_name() {
+            Some(name) => {
+                let name = name.to_string_lossy().to_string();
+                LuaValue::String(luau.create_string(&name)?)
+            },
+            None => LuaNil
+        }
+    };
     let grab_file_ext_re = Regex::new(r"\.([a-zA-Z0-9]+)$").unwrap();
     let metadata = fs::metadata(entry_path)?;
     if metadata.is_dir() {
         TableBuilder::create(luau)?
+            .with_value("name", base_name)?
             .with_value("type", "Directory")?
             .with_value("path", entry_path)?
             .with_function("entries", {
@@ -325,6 +336,7 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
         };
 
         TableBuilder::create(luau)?
+            .with_value("name", base_name)?
             .with_value("type", "File")?
             .with_value("size", metadata.len())?
             .with_value("path", entry_path)?
