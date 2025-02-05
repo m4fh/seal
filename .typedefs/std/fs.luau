@@ -22,6 +22,7 @@ local content = if f then f:read() else ""
 type fs = {
 	readfile: (path: string) -> string,
 	writefile: (WriteFileOptions) -> (),
+	exists: (path: string) -> boolean,
 	find: (string | {directory: string } | {file: string}) -> Entry?,
 	file: (path: string) -> FileEntry?,
 	dir: (path: string) -> DirectoryEntry?,
@@ -69,6 +70,8 @@ type fs = {
 	readbytes: (path: string, s: number?, f: number?) -> buffer,
 	--- saves/writes a file given WriteFileOptions: {path: string, content: string, overwrite: boolean?}
 	writefile: (WriteFileOptions) -> (),
+	--- checks if a path exists or not
+	exists: (path: string) -> boolean,
 	--- finds an Entry if the requested file/directory exists, else returns nil
 	find: (string | {directory: string } | {file: string}) -> Entry?,
 	--- finds a FileEntry at a given path or nil if the file not found. Equivalent to fs.find { file: string }
@@ -190,6 +193,19 @@ local files = fs.list("./typedefs")
 ```
 ]=]
 function fs.list(path: string): { string }
+	return nil :: any
+end
+
+--[=[
+	Checks if a path exists; errors if permission denied.
+	```luau
+	local fs = require("@std/fs")
+	if fs.exists("./existence") then
+		print("yes")
+	end
+	```
+]=]
+function fs.exists(path: string): boolean
 	return nil :: any
 end
 

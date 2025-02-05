@@ -617,6 +617,30 @@ fn fs_find_dir(luau: &Lua, path: LuaValue) -> LuaValueResult {
     }
 }
 
+fn fs_exists(_luau: &Lua, path: LuaValue) -> LuaValueResult {
+    let path = match path {
+        LuaValue::String(path) => path.to_string_lossy(),
+        other => {
+            return wrap_err!("fs.exists(path) expected path to be a string, got: {:#?}", other);
+        }
+    };
+
+    match fs::exists(&path) {
+        Ok(true) => Ok(LuaValue::Boolean(true)),
+        Ok(false) => Ok(LuaValue::Boolean(false)),
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::PermissionDenied => {
+                    wrap_err!("fs.exists: attempt to check if path '{}' exists but permission denied", path)
+                },
+                other => {
+                    wrap_err!("fs.exists: encountered an error checking if '{}' exists: {}", path, other)
+                }
+            }
+        }
+    }
+}
+
 fn fs_create(luau: &Lua, new_options: LuaValue) -> LuaValueResult {
     match new_options {
         LuaValue::Table(options) => {
@@ -670,6 +694,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("file", fs_find_file)?
         .with_function("dir", fs_find_dir)?
         .with_function("create", fs_create)?
+        .with_function("exists", fs_exists)?
         .with_function("readbytes", fs_readbytes)?
         .build_readonly()?;
 
