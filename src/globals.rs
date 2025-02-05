@@ -9,6 +9,7 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
     if path.starts_with("@std") {
         match path.as_str() {
             "@std/fs" => Ok(table(std_fs::create(luau)?)),
+            "@std/fs/path" => Ok(table(std_fs::create_path(luau)?)),
             "@std/env" => Ok(table(std_env::create(luau)?)),
         
             "@std/io" => Ok(table(std_io::create(luau)?)),
@@ -47,6 +48,7 @@ pub fn require(luau: &Lua, path: String) -> LuaValueResult {
             "@std/thread" => Ok(table(std_thread::create(luau)?)),
 
             "@std/testing" => Ok(table(std_testing::create(luau)?)),
+            "@std/testing/try" => Ok(function(luau.create_function(std_testing::testing_try)?)),
             "@std" => {
                 Ok(table(
                     TableBuilder::create(luau)?

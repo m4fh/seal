@@ -1,7 +1,7 @@
 use crate::{colors, std_io_output, table_helpers::TableBuilder, LuaValueResult};
 use mlua::prelude::*;
 
-fn testing_try(luau: &Lua, f: LuaValue) -> LuaValueResult {
+pub fn testing_try(luau: &Lua, f: LuaValue) -> LuaValueResult {
     match f {
         LuaValue::Function(f) => {
             let pcall: LuaFunction = luau.globals().get("pcall")?;

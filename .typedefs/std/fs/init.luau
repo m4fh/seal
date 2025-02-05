@@ -5,6 +5,7 @@ The greatest simplest filesystem standardlib that's ever lived (in luau).
 
 ```luau
 local fs = require("@std/fs")
+
 -- read a file to string
 local text = fs.readfile("./somefile.txt")
 -- iterate through files in a dir
@@ -120,10 +121,13 @@ export type FileEntry = {
 	remove: (self: FileEntry) -> (),
 }
 
---[=[
-Reads a file from a given string `path`, relative to the current workspace directory.
+local pathlib = require("./path")
+fs.path = {} :: pathlib.PathLib
 
-Errors if `path` doesn't exist on the file system or if you don't have permission to access that path.
+--[=[
+	Reads a file from a given string `path`, relative to the current workspace directory.
+
+	Errors if `path` doesn't exist on the file system or if you don't have permission to access that path.
 ]=]
 function fs.readfile(path: string): string
 	return nil :: any
@@ -351,7 +355,6 @@ type CreateOptions = {
 } | {
 	directory: DirTree
 }
-
 
 --[=[
 Creates a new file or directory or directory tree

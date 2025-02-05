@@ -7,10 +7,7 @@ for path, entry in fs.entries(".") do
 end
 
 local entry = fs.find("./Cargo.toml")
-
-if entry then
-    print("Cargo.toml found")
-end
+assert(entry ~= nil and entry.type == "File", "Cargo.toml not found?")
 
 local _src = fs.find({directory = "./src"})
 
