@@ -1,5 +1,6 @@
 use mlua::prelude::*;
-use std::io::{BufRead, Read, Seek};
+use std::cell::RefCell;
+use std::io::{BufRead, BufReader, Read, Seek};
 use std::{fs, io, path};
 use std::path::{Path, PathBuf};
 use io::Write;
@@ -233,7 +234,7 @@ fn does_file_exist(file_path: &str) -> bool {
 }
 
 fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
-    let path = Path::new(&entry_path);
+    let path = PathBuf::from(entry_path);
     let base_name = {
         match path.file_name() {
             Some(name) => {
@@ -366,52 +367,93 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
                     }
                 }   
             })?
-            .with_function("readlines", {
-                let entry_path = entry_path.to_string();
-                move | luau, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                    let file = match fs::File::open(&entry_path) {
+            // .with_function("readlines", {
+            //     let entry_path = entry_path.to_string();
+            //     move | luau, mut multivalue: LuaMultiValue | -> LuaValueResult {
+            //         let file = match fs::File::open(&entry_path) {
+            //             Ok(file) => file,
+            //             Err(err) =>{
+            //                 return wrap_err!("FileEntry:readlines: error opening file: {}", err);
+            //             }
+            //         };
+                    
+            //         let reader = io::BufReader::new(file);
+            //         match multivalue.pop_back() {
+            //             Some(LuaValue::Function(handler_function)) => {
+            //                 for (index, line) in reader.lines().enumerate() {
+            //                     match line {
+            //                         Ok(line) => {
+            //                             let line = line.into_lua(luau)?;
+            //                             let index = LuaValue::Integer((index + 1) as i32);
+            //                             let args = LuaMultiValue::from_vec(vec![line, index]);
+            //                             match handler_function.call::<Option<LuaString>>(args) {
+            //                                 Ok(Some(s)) => {
+            //                                     match s.to_string_lossy().as_str() {
+            //                                         "break" => break,
+            //                                         _other => continue,
+            //                                     }
+            //                                 },
+            //                                 Ok(None) => continue,
+            //                                 Err(err) => {
+            //                                     return wrap_err!("error calling readlines callback: {}", err);
+            //                                 }
+            //                             }
+            //                         },
+            //                         Err(err) => {
+            //                             return wrap_err!("error reading lines: {}", err);
+            //                         }
+            //                     }
+            //                 }
+            //                 Ok(LuaNil)
+            //             },
+            //             Some(other) => {
+            //                 wrap_err!("expected function, got: {:#?}", other)
+            //             },
+            //             None => {
+            //                 wrap_err!("expected function, got: nothing")
+            //             }
+            //         }
+            //     }
+            // })?
+            .with_function("readlines",{
+                let path = path.clone();
+                move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
+                    let file = match fs::File::open(&path) {
                         Ok(file) => file,
-                        Err(err) =>{
-                            return wrap_err!("FileEntry:readlines: error opening file: {}", err);
+                        Err(err) => {
+                            return wrap_err!("FileEntry:readlines(): error opening file: {}", err);
                         }
                     };
-                    
-                    let reader = io::BufReader::new(file);
-                    match multivalue.pop_back() {
-                        Some(LuaValue::Function(handler_function)) => {
-                            for (index, line) in reader.lines().enumerate() {
-                                match line {
-                                    Ok(line) => {
-                                        let line = line.into_lua(luau)?;
-                                        let index = LuaValue::Integer((index + 1) as i32);
-                                        let args = LuaMultiValue::from_vec(vec![line, index]);
-                                        match handler_function.call::<Option<LuaString>>(args) {
-                                            Ok(Some(s)) => {
-                                                match s.to_string_lossy().as_str() {
-                                                    "break" => break,
-                                                    _other => continue,
-                                                }
-                                            },
-                                            Ok(None) => continue,
-                                            Err(err) => {
-                                                return wrap_err!("error calling readlines callback: {}", err);
-                                            }
-                                        }
-                                    },
-                                    Err(err) => {
-                                        return wrap_err!("error reading lines: {}", err);
-                                    }
+
+                    let reader = BufReader::new(file);
+                    let reader_cell = RefCell::new(reader);
+
+                    let current_line: i32 = 0;
+                    let current_line_cell = RefCell::new(current_line);
+
+                    Ok(LuaValue::Function(luau.create_function({
+                        move | luau: &Lua, _value: LuaValue | -> LuaResult<LuaMultiValue> {
+                            let mut reader_cell = reader_cell.borrow_mut();
+                            let reader = reader_cell.by_ref();
+                            let mut new_line = String::from("");
+                            match reader.read_line(&mut new_line) {
+                                Ok(0) => {
+                                    let multi_vec = vec![LuaNil];
+                                    Ok(LuaMultiValue::from_vec(multi_vec))
+                                },
+                                Ok(_other) => {
+                                    let mut current_line = current_line_cell.borrow_mut();
+                                    *current_line += 1;
+                                    let luau_line = luau.create_string(new_line.trim_end())?;
+                                    let multi_vec = vec![LuaValue::Integer(*current_line), LuaValue::String(luau_line)];
+                                    Ok(LuaMultiValue::from_vec(multi_vec))
+                                },
+                                Err(err) => {
+                                    wrap_err!("FileEntry:readlines(): unable to read line: {}", err)
                                 }
                             }
-                            Ok(LuaNil)
-                        },
-                        Some(other) => {
-                            wrap_err!("expected function, got: {:#?}", other)
-                        },
-                        None => {
-                            wrap_err!("expected function, got: nothing")
                         }
-                    }
+                    })?))
                 }
             })?
             .with_function("remove", {

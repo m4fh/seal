@@ -120,7 +120,21 @@ export type FileEntry = {
 	extension: string,
 	size: number,
 	readbytes: (self: FileEntry, s: number?, f: number?) -> buffer,
-	readlines: (self: FileEntry, handler: (line: string, index: number) -> ()) -> nil,
+	--[=[
+	Iterate over the lines of a file without reading the whole file into memory.
+
+	## Usage
+	```luau
+	local fs = require("@std/fs")
+	local f = fs.file("./bigfile.csv")
+	if f then
+		for row: number, line: string in f:readlines() do
+			print(row, line)
+		end
+	end
+	```
+	]=]
+	readlines: (self: FileEntry) -> () -> (number, string),
 	read: (self: FileEntry) -> string,
 	remove: (self: FileEntry) -> (),
 }
