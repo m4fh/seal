@@ -29,7 +29,7 @@ export type PathLib = {
 		local parent_dir = path.parent(cwd)		
 		```
 	]=]
-	parent: (path: string, n: number?) -> string,
+	parent: (path: string, n: number?) -> string?,
 	--- the farthest child/leaf/node of the path, ex. `path.child("./src/main.luau") == "main.luau"`
 	child: (path: string) -> string?,
 }

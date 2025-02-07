@@ -7,6 +7,7 @@ fs.writefile {
 
 print(fs.readfile("./meow.txt"))
 
+fs.remove({ file = "./meow.txt" })
 -- fs.remove {
 -- 	file = "./meow.txt"
 -- }

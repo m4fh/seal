@@ -2,7 +2,6 @@ use mlua::prelude::*;
 use table_helpers::TableBuilder;
 use std::{fs, env, panic, path::Path};
 use std::io;
-// use regex::Regex;
 
 mod table_helpers;
 mod std_io_output;
@@ -24,8 +23,8 @@ mod std_shellexec;
 mod std_serde;
 mod std_crypt;
 mod std_testing;
-
 mod globals;
+mod require;
 
 use crate::std_io_colors as colors;
 
