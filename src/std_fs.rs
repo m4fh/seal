@@ -709,9 +709,19 @@ fn fs_create(luau: &Lua, new_options: LuaValue) -> LuaValueResult {
                     // Ok(LuaNil)
                 } else if let LuaValue::String(directory_path) = options.get("directory")? {
                     let dir_path = directory_path.to_string_lossy().to_string();
-                    fs::create_dir(&dir_path)?;
-                    dir_path
-                    // Ok(LuaNil)
+                    match fs::create_dir(&dir_path) {
+                        Ok(_) => dir_path,
+                        Err(err) => {
+                            match err.kind() {
+                                io::ErrorKind::AlreadyExists => {
+                                    return wrap_err!("fs.create: error creating directory: directory '{}' already exists", dir_path);
+                                },
+                                _other => {
+                                    return wrap_err!("fs.create: error creating directory: {}", err);
+                                }
+                            }
+                        }
+                    }
                 } else if let LuaValue::Table(_tree) = options.get("directory")? {
                     todo!()
                 } else {
@@ -820,13 +830,13 @@ fn fs_path_parent(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
 
     let path = Path::new(&requested_path);
     let mut current_path = path;
-    for i in 0..n_parents {
+    for _ in 0..n_parents {
         match current_path.parent() {
             Some(parent) => {
                 current_path = parent;
             },
             None => {
-                return wrap_err!("path.parent: path '{}' ran out of parents; n = {} parents were requested but path only has {} parents", requested_path, n_parents, i)
+                return Ok(LuaNil);
             }
         }
     }
@@ -854,7 +864,7 @@ fn fs_path_child(luau: &Lua, path: LuaValue) -> LuaValueResult {
     }
 }
 
-pub fn create_path(luau: &Lua) -> LuaResult<LuaTable> {
+pub fn create_pathlib(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("join", fs_path_join)?
         .with_function("exists", fs_exists)?
@@ -879,7 +889,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("create", fs_create)?
         .with_function("exists", fs_exists)?
         .with_function("readbytes", fs_readbytes)?
-        .with_value("path", create_path(luau)?)?
+        .with_value("path", create_pathlib(luau)?)?
         .build_readonly()?;
 
     Ok(std_fs)

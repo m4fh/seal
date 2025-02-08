@@ -27,7 +27,7 @@ type json = {
 	--- encodes json data without newlines, etc.
 	encode_data: (t: any) -> string,
 	decode: (json: string) -> any,
-	readfile: (path: string) -> string,
+	readfile: (path: string) -> any,
 	writefile: (WriteOptions: JsonWritefileOptions) -> (),
 	writefile_data: (WriteOptions: JsonWritefileOptions) -> ()
 }
