@@ -20,9 +20,6 @@ pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
         if let Some(cached_result) = cached_result {
             Ok(cached_result)
         } else {
-            // TODO: fix/rm the unnecessary current_path stuff
-            let script: LuaTable = luau.globals().raw_get("script")?;
-            let current_path: String = script.raw_get("current_path")?;
             let data = match fs::read_to_string(&path) {
                 Ok(data) => data,
                 Err(err) => {
@@ -36,13 +33,11 @@ pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
                     }
                 }
             };
-            script.raw_set("current_path", path.to_owned())?;
             let result: LuaValue = luau.load(data).set_name(&path).eval()?;
             require_cache.raw_set(path.clone(), result)?;
             // this is pretty cursed but let's just read the data we just wrote to the cache to get a new LuaValue
             // that can be returned without breaking the borrow checker or cloning
             let result = require_cache.raw_get(path.to_owned())?;
-            script.raw_set("current_path", current_path.to_owned())?;
             Ok(result)
         }
     }

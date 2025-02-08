@@ -8,14 +8,7 @@ declare function warn<T...>(...: T...): nil
 	
 declare script: {
 	entry_path: string,
-	current_path: string,
 	context: string?,
-	required_files: {
-		[string]: {
-			name: string,
-			src: string,
-		},
-	},
 	src: string,
 }
 

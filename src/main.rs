@@ -67,6 +67,7 @@ fn main() -> LuaResult<()> {
     // luau.sandbox(true)?; // free performance boost
 
     let globals = luau.globals();
+    let mut entry_path = String::from("");
 
     let mut luau_code: String = {
         if first_arg == "eval" {
@@ -78,7 +79,7 @@ fn main() -> LuaResult<()> {
             globals.set("net", table(std_net::create(&luau)?))?;
 
             globals.set("script", TableBuilder::create(&luau)?
-                .with_value("current_path", "eval")?
+                .with_value("entry_path", "eval")?
                 .build()?
             )?;
 
@@ -110,10 +111,10 @@ fn main() -> LuaResult<()> {
                 panic!("Wrong language! seal only runs .luau files")
             }
 
+            entry_path = file_path.clone();
+
             globals.set("script", TableBuilder::create(&luau)?
                 .with_value("entry_path", file_path.to_owned())?
-                .with_value("current_path", file_path.to_owned())?
-                .with_value("required_files", luau.create_table()?)?
                 .build()?
             )?;
 
@@ -153,9 +154,7 @@ fn main() -> LuaResult<()> {
 
     globals::set_globals(&luau)?;
 
-    let current_path: String = script.get("current_path")?;
-
-    match luau.load(luau_code).set_name(&current_path).exec() {
+    match luau.load(luau_code).set_name(&entry_path).exec() {
         Ok(()) => {
             std_process::handle_exit_callback(&luau, 0)?;
             Ok(())
