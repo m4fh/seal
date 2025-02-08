@@ -115,6 +115,8 @@ fn main() -> LuaResult<()> {
 
             globals.set("script", TableBuilder::create(&luau)?
                 .with_value("entry_path", file_path.to_owned())?
+                .with_function("path", globals::get_script_path)?
+                .with_function("parent", globals::get_script_parent)?
                 .build()?
             )?;
 

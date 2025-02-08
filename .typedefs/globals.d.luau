@@ -9,7 +9,8 @@ declare function warn<T...>(...: T...): nil
 declare script: {
 	entry_path: string,
 	context: string?,
-	src: string,
+	path: (self: any) -> string,
+	parent: (self: any) -> string,
 }
 
 declare channel: {

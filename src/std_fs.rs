@@ -740,7 +740,14 @@ fn fs_path_join(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let mut path = PathBuf::new();
     while let Some(component) = multivalue.pop_front() {
         let component = match component {
-            LuaValue::String(component) => component.to_string_lossy(),
+            LuaValue::String(component) => {
+                // passing a path starting with / or \ into path.push replaces the current path
+                // path.join("./src", "/main.luau") should not return "/main.luau"
+                // this strips any of those for better ux
+                let separators_to_trim = ['/', '\\']; 
+                let component = component.to_string_lossy();
+                component.trim_start_matches(separators_to_trim).to_string()
+            },
             other => {
                 return wrap_err!("path.join expected path to be a string, got: {:#?}", other);
             }
