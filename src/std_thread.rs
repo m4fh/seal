@@ -43,7 +43,7 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 
             let spawn_data = {
                 if let LuaValue::Table(data) = options.raw_get("data")? {
-                    Some(std_json::json_encode(luau, LuaValue::Table(data))?)
+                    Some(std_json::json_encode(luau, LuaValue::Table(data).into_lua_multi(luau)?)?)
                 } else {
                     None
                 }
@@ -182,7 +182,7 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                                 Some(data) => {
                                     match data {
                                         LuaValue::Table(data) => {
-                                            std_json::json_encode(new_luau, LuaValue::Table(data))?
+                                            std_json::json_encode(new_luau, LuaValue::Table(data).into_lua_multi(new_luau)?)?
                                         },
                                         LuaValue::String(data) => {
                                             data.to_str()?.to_string()
@@ -259,7 +259,7 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                                     s.to_str()?.to_string()
                                 },
                                 LuaValue::Table(data) => {
-                                    match std_json::json_encode(luau, LuaValue::Table(data)) {
+                                    match std_json::json_encode(luau, LuaValue::Table(data).into_lua_multi(luau)?) {
                                         Ok(json) => json,
                                         Err(err) => {
                                             return wrap_err!("thread.send unable to encode data to json: {}", err)

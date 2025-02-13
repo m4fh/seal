@@ -1,1 +1,15 @@
-{"reality":false,"name":"deviaze","age":23,"cats":[{"age":8,"name":"Taz"},{"age":0.95,"name":"Nanuk"}]}
+{
+  "reality": false,
+  "cats": [
+    {
+      "name": "Taz",
+      "age": 8
+    },
+    {
+      "name": "Nanuk",
+      "age": 0.95
+    }
+  ],
+  "name": "deviaze",
+  "age": 23
+}

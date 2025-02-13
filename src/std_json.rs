@@ -5,7 +5,8 @@ use crate::{std_fs, table_helpers::TableBuilder, wrap_err, colors, LuaValueResul
 
 use serde_json_lenient as serde_json;
 
-pub fn json_encode(_luau: &Lua, table: LuaValue) -> LuaResult<String> {
+#[allow(dead_code)]
+pub fn json_encode_old(_luau: &Lua, table: LuaValue) -> LuaResult<String> {
     match table {
         LuaValue::Table(t) => {
             Ok(serde_json::to_string_pretty(&t).map_err(LuaError::external)?)
@@ -13,6 +14,79 @@ pub fn json_encode(_luau: &Lua, table: LuaValue) -> LuaResult<String> {
         other => {
             Err(LuaError::external(format!("json.encode expected any json-serializable table, got: {:?}", other)))
         }
+    }
+}
+
+struct EncodeOptions {
+    pretty: bool,
+    sorted: bool,
+}
+
+pub fn json_encode(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<String> {
+    let table_to_encode = match multivalue.pop_front() {
+        Some(LuaValue::Table(table)) => table,
+        Some(other) => {
+            return wrap_err!("json.encode expected the value to encode to be a table, got: {:#?}", other);
+        }
+        None => {
+            return wrap_err!("json.encode expected a value to encode, got nothing");
+        }
+    };
+
+    let encode_options = {
+        let options_table = match multivalue.pop_front() {
+            Some(LuaValue::Table(table)) => Some(table),
+            Some(LuaNil) => None,
+            Some(other) => {
+                return wrap_err!("json.encode(value: any, options: EncodeOptions) expected options to be a table, got: {:#?}", other);
+            },
+            None => None,
+        };
+        if let Some(options_table) = options_table {
+            let pretty = match options_table.raw_get::<LuaValue>("pretty")? {
+                LuaValue::Boolean(pretty) => pretty,
+                LuaNil => true,
+                other => {
+                    return wrap_err!("EncodeOptions.pretty expected to be a boolean or nil, got: {:#?}", other);
+                }
+            };
+            let sorted = match options_table.raw_get::<LuaValue>("sorted")? {
+                LuaValue::Boolean(ordered) => ordered,
+                LuaNil => false,
+                other => {
+                    return wrap_err!("EncodeOptions.sorted expected to be a boolean or nil, got: {:#?}", other);
+                },
+            };
+
+            EncodeOptions {
+                pretty,
+                sorted,
+            }
+        } else {
+            EncodeOptions {
+                pretty: true,
+                sorted: false,
+            }
+        }
+    };
+
+    let temp_encoded = match serde_json::to_string(&table_to_encode) {
+        Ok(t) => t,
+        Err(err) => {
+            return wrap_err!("json.encode: error encoding json: {}", err);
+        }
+    };
+    let mut json_value = serde_json::from_str::<serde_json::Value>(&temp_encoded).unwrap();
+
+    if encode_options.sorted {
+        json_value.sort_all_objects();
+    }
+
+    if encode_options.pretty {
+        let encoded = serde_json::to_string_pretty(&json_value).unwrap();
+        Ok(encoded)
+    } else {
+        Ok(temp_encoded)
     }
 }
 
@@ -91,7 +165,7 @@ fn json_writefile(luau: &Lua, json_write_options: LuaValue) -> LuaValueResult {
                 let file_content = options.get("content")?;
                 match file_content {
                     LuaValue::Table(content) => {
-                        let json_result = json_encode(luau, LuaValue::Table(content))?;
+                        let json_result = json_encode(luau, LuaValue::Table(content).into_lua_multi(luau)?)?;
                         fs::write(file_path.to_string()?, json_result)?;
                         Ok(LuaNil)
                     },
