@@ -69,7 +69,6 @@ local t = {
 	}
 }
 
--- print(json.encode_data(t))
 local encode_attempt_1 = json.encode(t, { pretty = true, sorted = true })
 local encode_attempt_2 = json.encode(t, { pretty = true, sorted = true })
 

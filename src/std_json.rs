@@ -90,13 +90,17 @@ pub fn json_encode(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<Stri
     }
 }
 
-pub fn json_encode_data(_luau: &Lua, table: LuaValue) -> LuaResult<String> {
-    match table {
-        LuaValue::Table(t) => {
-            Ok(serde_json::to_string(&t).map_err(LuaError::external)?)
-        },
+pub fn json_encode_raw(_luau: &Lua, table: LuaValue) -> LuaResult<String> {
+    let table_to_encode = match table {
+        LuaValue::Table(t) => t,
         other => {
-            Err(LuaError::external(format!("json.encode expected any json-serializable table, got: {:?}", other)))
+            return wrap_err!("json.encode_raw expected any json-serializable table, got: {:#?}", other);
+        }
+    };
+    match serde_json::to_string(&table_to_encode) {
+        Ok(t) => Ok(t),
+        Err(err) => {
+            wrap_err!("json.encode_raw: unable to encode table: {}", err)
         }
     }
 }
@@ -186,7 +190,7 @@ fn json_writefile(luau: &Lua, json_write_options: LuaValue) -> LuaValueResult {
     }
 }
 
-fn json_writefile_data(luau: &Lua, json_write_options: LuaValue) -> LuaValueResult {
+fn json_writefile_raw(luau: &Lua, json_write_options: LuaValue) -> LuaValueResult {
     match json_write_options {
         LuaValue::Table(options) => {
             let file_path: LuaValue = options.get("path")?;
@@ -196,7 +200,7 @@ fn json_writefile_data(luau: &Lua, json_write_options: LuaValue) -> LuaValueResu
                 let file_content = options.get("content")?;
                 match file_content {
                     LuaValue::Table(content) => {
-                        let json_result = json_encode_data(luau, LuaValue::Table(content))?;
+                        let json_result = json_encode_raw(luau, LuaValue::Table(content))?;
                         fs::write(file_path.to_string()?, json_result)?;
                         Ok(LuaNil)
                     },
@@ -220,10 +224,10 @@ fn json_writefile_data(luau: &Lua, json_write_options: LuaValue) -> LuaValueResu
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("encode", json_encode)?
-        .with_function("encode_data", json_encode_data)?
+        .with_function("encode_raw", json_encode_raw)?
         .with_function("decode", json_decode)?
         .with_function("readfile", json_readfile)?
         .with_function("writefile", json_writefile)?
-        .with_function("writefile_data", json_writefile_data)?
+        .with_function("writefile_raw", json_writefile_raw)?
         .build_readonly()
 }
