@@ -10,7 +10,6 @@ local std = {
 	time = require("@std/time"),
 	datetime = require("@std/time/datetime"),
 	process = require("@std/process"),
-	shellexec = require("@std/shellexec"),
 	serde = require("@std/serde"),
 	json = require("@std/json"),
 	net = require("@std/net"),
