@@ -1004,7 +1004,6 @@ dependencies = [
  "crossbeam-channel",
  "hex",
  "include_dir",
- "libc",
  "mlua",
  "rand",
  "regex",
