@@ -70,7 +70,6 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/datetime" => ok_table(std_time::create_datetime(luau)),
 
         "@std/process" => ok_table(std_process::create(luau)),
-        "@std/shellexec" => ok_function(std_shellexec::shellexec, luau),
 
         "@std/serde" => ok_table(std_serde::create(luau)),
         "@std/serde/base64" => ok_table(std_serde::create_base64(luau)),
@@ -106,7 +105,6 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
                 .with_value("time", std_time::create(luau)?)?
                 .with_value("datetime", std_time::create_datetime(luau)?)?
                 .with_value("process", std_process::create(luau)?)?
-                .with_function("shellexec", std_shellexec::shellexec)?
                 .with_value("serde", std_serde::create(luau)?)?
                 .with_value("json", std_json::create(luau)?)?
                 .with_value("net", std_net::create(luau)?)?

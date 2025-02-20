@@ -19,7 +19,6 @@ mod std_net;
 mod std_net_http;
 mod std_net_serve;
 mod std_thread;
-mod std_shellexec;
 mod std_serde;
 mod std_crypt;
 mod std_testing;
