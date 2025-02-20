@@ -6,7 +6,7 @@ local x = {
 	b = "meow",
 }
 
-print(json.encode(x))
+-- print(json.encode(x))
 
 local unencodable = {
 	name = "deviaze",
@@ -45,10 +45,10 @@ type CatOwnerData = {
 	},
 }
 
-local t0 = os.clock()
+-- local t0 = os.clock()
 local json_result = json.decode(got_data) :: CatOwnerData
-print(os.clock() - t0)
-print(json_result)
+-- print(os.clock() - t0)
+-- print(json_result)
 
 json.writefile {
 	path = "./tests/data/cats.json",
@@ -57,4 +57,19 @@ json.writefile {
 
 -- print(fs.entries("./tests/data/"))
 local deviazecats = json.readfile("./tests/data/cats.json")
-print(deviazecats)
+-- print(deviazecats)
+
+
+local t = {
+	something = 2,
+	nothing = 3,
+	other = {
+		something = 1,
+		["21"] = { 1, 2, 3 }
+	}
+}
+
+local encode_attempt_1 = json.encode(t, { pretty = true, sorted = true })
+local encode_attempt_2 = json.encode(t, { pretty = true, sorted = true })
+
+assert(encode_attempt_1 == encode_attempt_2, "not actually sorted in same order???")

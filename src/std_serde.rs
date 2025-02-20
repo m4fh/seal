@@ -30,7 +30,7 @@ fn serde_yaml_decode(luau: &Lua, value: LuaValue) -> LuaValueResult {
 fn serde_yaml_encode(luau: &Lua, value: LuaValue) -> LuaValueResult {
     match value {
         LuaValue::Table(table) => {
-            let luau_string = std_json::json_encode(luau, LuaValue::Table(table))?;
+            let luau_string = std_json::json_encode(luau, LuaValue::Table(table).into_lua_multi(luau)?)?;
             let json_string: serde_json::Value = match serde_json::from_str(&luau_string) {
                 Ok(s) => s,
                 Err(err) => {
