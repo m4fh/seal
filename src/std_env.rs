@@ -3,6 +3,7 @@ use std::process::Command;
 
 use mlua::prelude::*;
 use crate::table_helpers::TableBuilder;
+use crate::{wrap_err, LuaValueResult, colors};
 
 pub fn get_current_shell() -> String {
     #[cfg(target_family = "unix")]
@@ -65,7 +66,83 @@ pub fn get_current_shell() -> String {
         }
     }
 
-    panic!("Could not determine the current shell path");
+    String::from("")
+    // panic!("Could not determine the current shell path");
+}
+
+fn env_environment_getvar(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let var_name = match value {
+        LuaValue::String(var) => var.to_string_lossy(),
+        other => {
+            return wrap_err!("env.getvar expected a string, got: {:#?}", other);
+        }
+    };
+
+    match env::var(&var_name) {
+        Ok(var) => Ok(LuaValue::String(luau.create_string(&var)?)),
+        Err(env::VarError::NotPresent) => {
+            Ok(LuaNil)
+        },
+        Err(env::VarError::NotUnicode(_nonunicode_var)) => {
+            wrap_err!("env.getvar: requested environment variable '{}' has invalid unicode value", var_name)
+        }
+    }
+}
+
+fn env_environment_setvar(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let key = match multivalue.pop_front() {
+        Some(LuaValue::String(key)) => key.to_string_lossy(),
+        Some(other) => {
+            return wrap_err!("env.setvar(key: string, value: string) expected key to be a string, got: {:#?}", other);
+        },
+        None => {
+            return wrap_err!("env.setvar(key: string, value: string) expected 2 arguments, got none")
+        }
+    };
+
+    let value = match multivalue.pop_back() {
+        Some(LuaValue::String(value)) => value.to_string_lossy(),
+        Some(other) => {
+            return wrap_err!("env.setvar(key: string, value: string) expected value to be a string, got: {:#?}", other);
+        },
+        None => {
+            return wrap_err!("env.setvar(key: string, value: string) was called with only one argument");
+        }
+    };
+
+    // safety: setting/removing environment unsafe in multithreaded programs on linux
+    // this could be possibly unsafe if the same variable gets set in scripts from multiple thread.spawns on linux
+    unsafe { env::set_var(&key, value); }
+
+    match env::var(&key) {
+        Ok(_value) => Ok(LuaNil),
+        Err(err) => {
+            wrap_err!("env.setvar: unable to set environment variable '{}': {}", key, err)
+        }
+    }
+
+}
+
+fn env_environment_removevar(_luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let key = match value {
+        LuaValue::String(key) => key.to_string_lossy(),
+        other => {
+            return wrap_err!("env.removevar(key: string) expected key to be a string, got: {:#?}", other);
+        }
+    };
+
+    // SAFETY: removing env variable unsafe in multithreaded linux
+    // this could cause ub if mixed with thread.spawns 
+    unsafe { env::remove_var(&key); }
+
+    match env::var(&key) {
+        Ok(key) => {
+            wrap_err!("env.removevar: unable to remove environment variable '{}'", key)
+        },
+        Err(_err) => {
+            Ok(LuaNil)
+        },
+    }
 }
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
@@ -75,7 +152,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
 		"windows" => String::from("Windows"),
 		"android" => String::from("Android"),
 		"macos" => String::from("MacOS"),
-		_ => String::from("Other")
+		other => other[0..1].to_uppercase() + &other[1..],
 	};
 
 	let mut executable_path = String::from("");
@@ -104,6 +181,9 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
 		.with_value("executable_path", executable_path)?
 		.with_value("shell_path", get_current_shell())?
 		.with_value("script_path", script_path)?
+        .with_function("getvar", env_environment_getvar)?
+        .with_function("setvar", env_environment_setvar)?
+        .with_function("removevar", env_environment_removevar)?
 		.with_value("current_working_directory", current_working_directory)?
 		.build_readonly()
 }
