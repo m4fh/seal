@@ -11,6 +11,12 @@ type env = {
 	executable_path: string,
 	script_path: string,
 	current_working_directory: string,
+	--- get environment variable if exists
+	getvar: (key: string) -> string?,
+	--- set an environment variable (unsafe in multithreaded linux)
+	setvar: (key: string, value: string) -> nil,
+	--- remove an environment variable (unsafe in multithreaded linux)
+	removevar: (key: string) -> nil,
 }
 ```
 ]=]
@@ -23,6 +29,22 @@ type env = {
 	executable_path: string,
 	script_path: string,
 	current_working_directory: string,
+	--[=[
+	Gets an environment variable in the current process.
+	]=]
+	getvar: (key: string) -> string?,
+	--[=[
+	Sets an environment variable in the current process.
+
+	Note, this function is **unsafe** in multithreaded contexts on Linux.
+	]=]
+	setvar: (key: string, value: string) -> string,
+	--[=[
+	Removes an environment variable in the current process.
+
+	Note, this function is **unsafe** in multithreaded contexts on Linux.
+	]=]
+	removevar: (key: string) -> nil,
 }
 
 return env :: env
