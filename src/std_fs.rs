@@ -288,6 +288,50 @@ fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
                     // fs_listdir(luau, entry_path.clone())
                 }
             })?
+            .with_function("findfile", {
+                let entry_path = entry_path.to_string();
+                move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                    let filename = match multivalue.pop_back() {
+                        Some(LuaValue::String(filename)) => filename.to_string_lossy(),
+                        Some(other) => {
+                            return wrap_err!("DirectoryEntry:findfile(filename: string) expected filename, got: {:#?}", other);
+                        },
+                        None => {
+                            return wrap_err!("DirectoryEntry:findfile(filename: string) expected filename, got nothing");
+                        }
+                    };
+                    let mut pathbuf = PathBuf::from(&entry_path);
+                    pathbuf.push(filename);
+                    match fs_find_file(luau, pathbuf.into_lua(luau)?) {
+                        Ok(f) => Ok(f),
+                        Err(err) => {
+                            wrap_err!(err.to_string())
+                        }
+                    }
+                }
+            })?
+            .with_function("finddir", {
+                let entry_path = entry_path.to_string();
+                move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                    let dirname = match multivalue.pop_back() {
+                        Some(LuaValue::String(filename)) => filename.to_string_lossy(),
+                        Some(other) => {
+                            return wrap_err!("DirectoryEntry:finddir(dirname: string) expected dirname, got: {:#?}", other);
+                        },
+                        None => {
+                            return wrap_err!("DirectoryEntry:finddir(dirname: string) expected dirname, got nothing");
+                        }
+                    };
+                    let mut pathbuf = PathBuf::from(&entry_path);
+                    pathbuf.push(dirname);
+                    match fs_find_dir(luau, pathbuf.into_lua(luau)?) {
+                        Ok(f) => Ok(f),
+                        Err(err) => {
+                            wrap_err!(err.to_string())
+                        }
+                    }
+                }
+            })?
             .with_function("remove", {
                 let entry_path = entry_path.to_string();
                 move | _luau, _s: LuaMultiValue | {

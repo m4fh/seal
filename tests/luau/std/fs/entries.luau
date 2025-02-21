@@ -49,3 +49,24 @@ if appendfile then
 	appendfile:append("andmore")
 	assert(appendfile:read() == "startercontentandmore", "appendfile:append didn't work right?")
 end
+
+local function findfile()
+	local server_views = fs.dir("./tests/data/server-views")
+	if server_views then
+		local index_html = server_views:file("index.html")
+		assert(index_html ~= nil, "can't find index.html")
+		assert(index_html.extension == "html")
+	end
+end
+
+findfile()
+
+local function finddir()
+	local data_folder = fs.dir("./tests/data")
+	if data_folder then
+		local server_views = data_folder:dir("server-views")
+		assert(server_views ~= nil, "cant find server-views")
+	end
+end
+
+finddir()

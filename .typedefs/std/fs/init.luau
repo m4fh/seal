@@ -40,6 +40,9 @@ export type DirectoryEntry = {
 	list: (self: DirectoryEntry) -> {string},
 	entries: (self: DirectoryEntry) -> { [string]: Entry },
 	remove: (self: DirectoryEntry) -> (),
+	find: (self: DirectoryEntry, options: FindOptions) -> (FileEntry | DirectoryEntry)?,
+	findfile: (self: DirectoryEntry, filename: string) -> FileEntry?,
+	finddir: (self: DirectoryEntry, dirname: string) -> DirectoryEntry?,
 }
 export type FileEntry = {
 	name: string?,
@@ -61,7 +64,7 @@ export type RemoveDirectoryOptions = {
 	force: boolean?, --- this defaults to true
 	--- only if this is specified and true will you be allowed to remove paths that start in /
 	remove_absolute_path: boolean?,
-}
+}filename
 ```
 ]=]
 local fs = {}
@@ -110,7 +113,9 @@ export type DirectoryEntry = {
 	},
 	remove: (self: DirectoryEntry) -> (),
 	create: (self: DirectoryEntry, options: CreateOptions) -> FileEntry | DirectoryEntry,
-	find: (self: DirectoryEntry, options: FindOptions) -> (FileEntry | DirectoryEntry)?
+	find: (self: DirectoryEntry, options: FindOptions) -> (FileEntry | DirectoryEntry)?,
+	file: (self: DirectoryEntry, filename: string) -> FileEntry?,
+	dir: (self: DirectoryEntry, dirname: string) -> DirectoryEntry?,
 }
 
 export type FileEntry = {
