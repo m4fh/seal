@@ -55,7 +55,7 @@ fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueR
 fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
     match path.as_str() {
         "@std/fs" => ok_table(std_fs::create(luau)),
-        "@std/fs/path" => ok_table(std_fs::create_pathlib(luau)),
+        "@std/fs/path" => ok_table(std_fs_pathlib::create(luau)),
         "@std/env" => ok_table(std_env::create(luau)),
 
         "@std/io" => ok_table(std_io::create(luau)),

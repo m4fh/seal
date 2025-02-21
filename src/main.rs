@@ -6,6 +6,7 @@ use std::io;
 mod table_helpers;
 mod std_io_output;
 mod std_fs;
+mod std_fs_pathlib;
 mod std_process;
 mod std_env;
 mod std_json;
