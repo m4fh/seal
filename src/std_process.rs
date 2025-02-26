@@ -206,7 +206,11 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                 let buffer_size = match multivalue.pop_back() {
                     Some(LuaValue::Integer(i)) => i as usize,
                     Some(LuaValue::Number(n)) => {
-                        return wrap_err!("ChildProcess.stdout:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                        if n.trunc() == n {
+                            n as usize
+                        } else {
+                            return wrap_err!("ChildProcess.stdout:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                        }
                     },
                     _ => 32,
                 };
@@ -255,7 +259,11 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                 let buffer_size = match multivalue.pop_back() {
                     Some(LuaValue::Integer(i)) => i as usize,
                     Some(LuaValue::Number(n)) => {
-                        return wrap_err!("ChildProcess.stderr:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                        if n.trunc() == n {
+                            n as usize
+                        } else {
+                            return wrap_err!("ChildProcess.stderr:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                        }
                     },
                     _ => 32,
                 };
