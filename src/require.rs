@@ -44,11 +44,11 @@ pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
 }
 
 // wraps returns of stdlib::create functions with Ok(LuaValue::Table(t))
-fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
+pub fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
     Ok(LuaValue::Table(t?))
 }
 
-fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
+pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
     Ok(LuaValue::Function(luau.create_function(f)?))
 }
 

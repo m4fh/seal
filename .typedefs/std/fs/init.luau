@@ -114,30 +114,32 @@ export type DirectoryEntry = {
 }
 
 export type FileEntry = {
-	name: string?,
-	type: "File",
+	name: string,
 	path: string,
-	extension: string,
-	size: number,
-	readbytes: (self: FileEntry, s: number?, f: number?) -> buffer,
-	--[=[
-	Iterate over the lines of a file without reading the whole file into memory.
-
-	## Usage
-	```luau
-	local fs = require("@std/fs")
-	local f = fs.file("./bigfile.csv")
-	if f then
-		for row: number, line: string in f:readlines() do
-			print(row, line)
-		end
-	end
-	```
-	]=]
-	readlines: (self: FileEntry) -> () -> (number, string),
+	type: "File",
+	size: (self: FileEntry) -> number,
 	read: (self: FileEntry) -> string,
+	readbytes: (self: FileEntry, init: number?, final: number?) -> buffer,
 	append: (self: FileEntry, content: string | buffer) -> (),
+	readlines: (self: FileEntry) -> () -> (number, string),
+	is_valid_utf8: (self: FileEntry) -> boolean,
+	metadata: (self: FileEntry) -> FsMetadata,
+	copy_to: (self: FileEntry, destination: string, relative: boolean?) -> (),
+	move_to: (self: FileEntry, destination: string, relative: boolean?) -> (),
+	rename: (self: FileEntry, newname: string) -> (),
 	remove: (self: FileEntry) -> (),
+}
+
+local datetime = require("@std/time/datetime")
+
+type FsMetadata = {
+	created_at: datetime.DateTimeUtc?,
+	modified_at: datetime.DateTimeUtc?,
+	accessed_at: datetime.DateTimeUtc?,
+	permissions: {
+		readonly: boolean,
+		unix_mode: number?,
+	}
 }
 
 local pathlib = require("./path")
@@ -277,19 +279,11 @@ end
 function fs.dir(path: string): DirectoryEntry?
 	return nil :: any
 end
---[=[
-	Finds a `FileEntry` at the requested `path` if one exists, otherwise returns nil. Ergonomic alternative to `fs.find { file: string }`
+fs.file = {}
 
-	## Usage
-	```luau
-	local gitignore = fs.file(".gitignore")
-	local ignored_files: { string } = if gitignore then gitignore:read():split("\n") else {}
-	```
-]=]
-function fs.file(path: string): FileEntry?
+function fs.file.from(path: string): FileEntry
 	return nil :: any
 end
-
 --[=[
 Moves or renames a file
 ]=]
@@ -343,6 +337,14 @@ fs.remove {
 ]=]
 function fs.remove(options: RemoveOptions): ()
 	return nil :: any
+end
+
+function fs.removefile(path: string): ()
+	
+end
+
+function fs.removedir(path: string): ()
+	
 end
 
 export type DirTreeDir = {

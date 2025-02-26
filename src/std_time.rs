@@ -1,5 +1,6 @@
 use crate::{table_helpers::TableBuilder, wrap_err, colors};
 use crate::LuaValueResult;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{thread, time::Duration};
 
 use chrono::Local;
@@ -12,7 +13,14 @@ fn time_wait(_luau: &Lua, seconds: LuaNumber) -> LuaValueResult {
     Ok(LuaValue::Boolean(true)) // return true to ensure while time.wait(n) works
 }
 
-fn time_datetime_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
+pub fn from_system_time(luau: &Lua, system_time: SystemTime) -> LuaValueResult {
+    let unix_timestamp = system_time.duration_since(UNIX_EPOCH)
+        .expect("time went oof");
+    let unix_timestamp = unix_timestamp.as_secs();
+    time_datetime_from(luau, unix_timestamp.into_lua(luau)?)
+}
+
+pub fn time_datetime_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
     match value { 
         LuaValue::Integer(unix_timestamp) => {
             let dt = chrono::DateTime::from_timestamp(unix_timestamp.into(), 0).unwrap();

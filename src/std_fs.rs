@@ -6,8 +6,9 @@ use std::path::PathBuf;
 use io::Write;
 
 use regex::Regex;
+use crate::require::ok_table;
 use crate::{table_helpers::TableBuilder, LuaValueResult};
-use crate::{wrap_err, std_io_colors as colors, std_fs_pathlib};
+use crate::{wrap_err, std_io_colors as colors, std_fs_pathlib, std_fs_entries};
 
 fn fs_listdir(luau: &Lua, path: String) -> LuaResult<LuaTable> {
     match fs::metadata(&path) {
@@ -98,26 +99,16 @@ pub fn fs_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
     Ok(LuaValue::String(luau.create_string(bytes)?))
 }
 
-// Reads random file into an array of bytes
-pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
-    let entry_path: String = match multivalue.pop_front() {
-        Some(LuaValue::String(file_path)) => file_path.to_string_lossy(),
-        Some(other) => 
-            return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected file path to be a string, got: {:#?}", other),
-        None => {
-            return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected to be called with self.");
-        }
-    };
-
+pub fn read_entry_path_into_buffer(luau: &Lua, entry_path: String, mut multivalue: LuaMultiValue, function_name: &str) -> LuaValueResult {
     let start = match multivalue.pop_front() {
         Some(LuaValue::Integer(n)) => {
             if n >= 0 {
                 Some(n)
             } else {
-                return wrap_err!("fs.readbytes: start byte s must be >= 0!!");
+                return wrap_err!("{}: start byte s must be >= 0!!", function_name);
             }
         },
-        Some(other) => return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected s to be a number, got: {:#?}", other),
+        Some(other) => return wrap_err!("{}(file_path, s: number?, f: number?) expected s to be a number, got: {:#?}", function_name, other),
         None => None,
     };
     let finish = match multivalue.pop_front() {
@@ -125,13 +116,13 @@ pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult
             if n > 0 { 
                 Some(n)
             } else {
-                return wrap_err!("fs.readbytes: final byte f must be positive!!");
+                return wrap_err!("{}: final byte f must be positive!!", function_name);
             }
         },
-        Some(other) => return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected f to be a number, got: {:#?}", other),
+        Some(other) => return wrap_err!("{}(file_path, s: number?, f: number?) expected f to be a number, got: {:#?}", function_name, other),
         None => {
             if start.is_some() {
-                return wrap_err!("fs.readbytes(file_path, s: number, f: number): missing final byte f; if s is provided then f must also be provided");
+                return wrap_err!("{}(file_path, s: number, f: number): missing final byte f; if s is provided then f must also be provided", function_name);
             } else {
                 None
             }
@@ -145,7 +136,7 @@ pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult
         let mut file = match fs::File::open(&entry_path) {
             Ok(f) => f,
             Err(err) => {
-                return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) error reading path: {}", err);
+                return wrap_err!("{}(file_path, s: number?, f: number?) error reading path: {}", function_name, err);
             }
         };
     
@@ -155,29 +146,42 @@ pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult
     
         // Seek to the start position
         if let Err(err) = file.seek(std::io::SeekFrom::Start(start as u64)) {
-            return wrap_err!("fs.readbytes: error seeking to start position: {}", err);
+            return wrap_err!("{}: error seeking to start position: {}", function_name, err);
         }
     
         // Read the requested bytes
         match file.read_exact(&mut buffer) {
             Ok(_) => {
-                // let lua_string = luau.create_string(&buffer)?;
                 let buffy = luau.create_buffer(&buffer)?;
                 Ok(LuaValue::Buffer(buffy))
             },
-            Err(err) => wrap_err!("fs.readbytes: error reading bytes: {}", err),
+            Err(err) => wrap_err!("{}: error reading bytes: {}", function_name, err),
         }
     } else {
         // read the whole thing
         let bytes = match fs::read(&entry_path) {
             Ok(bytes) => bytes,
             Err(err) => {
-                return wrap_err!("fs.readbytes: failed to read file with error: {}", err);
+                return wrap_err!("{}: failed to read file with error: {}", function_name, err);
             }
         };
         let buffy = luau.create_buffer(bytes)?;
         Ok(LuaValue::Buffer(buffy))
     }
+}
+
+// Reads random file into an array of bytes
+pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let entry_path: String = match multivalue.pop_front() {
+        Some(LuaValue::String(file_path)) => file_path.to_string_lossy(),
+        Some(other) => 
+            return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected file path to be a string, got: {:#?}", other),
+        None => {
+            return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected to be called with self.");
+        }
+    };
+
+    read_entry_path_into_buffer(luau, entry_path, multivalue, "fs.readbytes")
 }
 
 /**
@@ -585,6 +589,7 @@ fn fs_find(luau: &Lua, query: LuaValue) -> LuaValueResult {
     }
 }
 
+#[allow(dead_code)]
 fn fs_find_file(luau: &Lua, path: LuaValue) -> LuaValueResult {
     let path = match path {
         LuaValue::String(path) => {
@@ -736,6 +741,22 @@ fn fs_create(luau: &Lua, new_options: LuaValue) -> LuaValueResult {
     }
 }
 
+fn fs_file_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let path = match value {
+        LuaValue::String(path) => path.to_string_lossy(),
+        other => {
+            return wrap_err!("fs.file.from(path) expected path to be a string, got: {:#?}", other);
+        }
+    };
+    ok_table(std_fs_entries::create_file_entry(luau, path))
+}
+
+pub fn create_filelib(luau: &Lua) -> LuaResult<LuaTable> {
+    TableBuilder::create(luau)?
+        .with_function("from", fs_file_from)?
+        .build_readonly()
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     let std_fs = TableBuilder::create(luau)?
         .with_function("readfile", fs_readfile)?
@@ -745,12 +766,13 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("list", fs_listdir)?
         .with_function("entries", fs_entries)?
         .with_function("find", fs_find)?
-        .with_function("file", fs_find_file)?
+        // .with_function("file", fs_find_file)?
         .with_function("dir", fs_find_dir)?
         .with_function("create", fs_create)?
         .with_function("exists", fs_exists)?
         .with_function("readbytes", fs_readbytes)?
         .with_value("path", std_fs_pathlib::create(luau)?)?
+        .with_value("file", create_filelib(luau)?)?
         .build_readonly()?;
 
     Ok(std_fs)
