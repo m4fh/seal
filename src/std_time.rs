@@ -21,43 +21,46 @@ pub fn from_system_time(luau: &Lua, system_time: SystemTime) -> LuaValueResult {
 }
 
 pub fn time_datetime_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
-    match value { 
-        LuaValue::Integer(unix_timestamp) => {
-            let dt = chrono::DateTime::from_timestamp(unix_timestamp.into(), 0).unwrap();
-            // let dt = chrono::DateTime::from_timestamp(unix_timestamp.into(), 0).unwrap();
-            Ok(LuaValue::Table(
-                TableBuilder::create(luau)?
-                    .with_value("unix_timestamp", dt.timestamp())?
-                    .with_function("format_utc", move |luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
-                        match multivalue.pop_back() {
-                            Some(LuaValue::String(format_string)) => {
-                                let format_string = format_string.to_str()?.to_string();
-                                dt.format(&format_string).to_string().into_lua(luau)
-                            }, 
-                            other => {
-                                wrap_err!("DateTime.format expected format string to be a string, got: {:?}", other)
-                            }
-                        }
-                    })?
-                    .with_function("format_local", move |luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
-                        let local_dt = dt.with_timezone(&Local);
-                        match multivalue.pop_back() {
-                            Some(LuaValue::String(format_string)) => {
-                                let format_string = format_string.to_str()?.to_string();
-                                local_dt.format(&format_string).to_string().into_lua(luau)
-                            }, 
-                            other => {
-                                wrap_err!("DateTime.format expected format string to be a string, got: {:?}", other)
-                            }
-                        }
-                    })?
-                    .build_readonly()?,
-            ))
+    let unix_timestamp = match value { 
+        LuaValue::Integer(unix_timestamp) => unix_timestamp,
+        LuaValue::Number(maybe_timestamp) => {
+            maybe_timestamp as i32
+        },
+        other =>  {
+            return wrap_err!("datetime.from(unix_timestamp) expected unix_timestamp to be a number, got: {:?}", other);
         }
-        other => wrap_err!("datetime.from(unix_timestamp) expected unix_timestamp to be a number, got: {:?}", other)
-    }
-}
+    };
 
+    let dt = chrono::DateTime::from_timestamp(unix_timestamp.into(), 0).unwrap();
+    Ok(LuaValue::Table(
+        TableBuilder::create(luau)?
+            .with_value("unix_timestamp", dt.timestamp())?
+            .with_function("format_utc", move |luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+                match multivalue.pop_back() {
+                    Some(LuaValue::String(format_string)) => {
+                        let format_string = format_string.to_str()?.to_string();
+                        dt.format(&format_string).to_string().into_lua(luau)
+                    }, 
+                    other => {
+                        wrap_err!("DateTime.format expected format string to be a string, got: {:?}", other)
+                    }
+                }
+            })?
+            .with_function("format_local", move |luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
+                let local_dt = dt.with_timezone(&Local);
+                match multivalue.pop_back() {
+                    Some(LuaValue::String(format_string)) => {
+                        let format_string = format_string.to_str()?.to_string();
+                        local_dt.format(&format_string).to_string().into_lua(luau)
+                    }, 
+                    other => {
+                        wrap_err!("DateTime.format expected format string to be a string, got: {:?}", other)
+                    }
+                }
+            })?
+            .build_readonly()?,
+    ))
+}
 
 fn time_datetime_now(luau: &Lua, _: LuaValue) -> LuaValueResult {
     let now = chrono::Local::now();
