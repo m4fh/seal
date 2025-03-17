@@ -37,6 +37,13 @@ export type Fs = {
 		child: (path: string) -> string?,
 		home: () -> string,
 	},
+
+	watch: (paths: string | { string }, recursive: boolean, handler: (Event) -> ()) -> (),
+}
+
+type Event = {
+	kind: "any" | "access" | "create" | "modify" | "rename" | "remove" | "other",
+	paths: { string },
 }
 
 type Entry = {
