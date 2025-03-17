@@ -82,7 +82,7 @@ type DirectoryEntry = {
 	name: string,
 	path: string,
 	type: "Directory",
-	list: (self: DirectoryEntry) -> { string },
+	list: (self: DirectoryEntry, recursive: boolean?) -> { string },
 	entries: (self: DirectoryEntry) -> { [string]: Entry },
 	find: (self: DirectoryEntry, path: string) -> Entry,
 	expect_file: (self: DirectoryEntry, filename: string) -> FileEntry,
