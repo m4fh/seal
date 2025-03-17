@@ -1,8 +1,9 @@
+use entry::wrap_io_read_errors;
 use mlua::prelude::*;
 use std::cell::RefCell;
 use std::io::{BufRead, BufReader, Read, Seek};
 use std::{fs::{self, OpenOptions}, io};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use io::Write;
 
 use regex::Regex;
@@ -14,33 +15,76 @@ pub mod entry;
 pub mod pathlib;
 pub mod file_entry;
 
-fn fs_listdir(luau: &Lua, path: String) -> LuaResult<LuaTable> {
-    match fs::metadata(&path) {
-        Ok(t) => {
-            if t.is_dir() {
-                let entries_list = luau.create_table()?;
-                for entry in fs::read_dir(&path)? {
-                    let entry = entry?;
-                    if let Some(entry_path) = entry.path().to_str() {
-                        entries_list.push(entry_path)?;
-                    }
-                };
-                Ok(entries_list)
-            } else {
-                Err(LuaError::runtime("Attempt to list files/entries of path, but path is a file itself"))
-            }
+/// fs.listdir(path: string, recursive: boolean?): { string }
+fn fs_listdir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let dir_path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => path.to_string_lossy(),
+        Some(other) => {
+            return wrap_err!("fs.listdir(path: string, recursive: boolean?) expected path to be a string, got: {:#?}", other);
         },
-        Err(err) => {
-            let err_message = match err.kind() {
-                io::ErrorKind::NotFound => format!("Invalid directory: \"{}\"", path),
-                io::ErrorKind::PermissionDenied => format!("Permission denied: {}", path),
-                _ => todo!()
-            };
-            Err(LuaError::runtime(err_message))
+        None => {
+            return wrap_err!("fs.listdir(path: string, recursive: boolean?) called without any arguments");
         }
+    };
+
+    let recursive = match multivalue.pop_front() {
+        Some(LuaValue::Boolean(recursive)) => recursive,
+        Some(LuaNil) => false,
+        Some(other) => {
+            return wrap_err!("fs.listdir(path: string, recursive: boolean?) expected recursive to be a boolean (default false), got: {:#?}", other);
+        }
+        None => false,
+    };
+
+    let metadata = match fs::metadata(&dir_path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            return entry::wrap_io_read_errors(err, "fs.listdir", &dir_path);
+        }
+    };
+    if metadata.is_dir() {
+        let entries_list = luau.create_table()?;
+        if recursive {
+            let mut list_vec = Vec::new();
+            match list_dir_recursive(&dir_path, &mut list_vec) {
+                Ok(()) => {},
+                Err(err) => {
+                    return wrap_err!("fs.listdir: unable to recursively iterate over path: {}", err);
+                }
+            };
+            let list_vec = list_vec; // make immutable again
+            for list_path in list_vec {
+                entries_list.push(list_path)?;
+            }
+        } else {
+            for entry in fs::read_dir(&dir_path)? {
+                let entry = entry?;
+                if let Some(entry_path) = entry.path().to_str() {
+                    entries_list.push(entry_path)?;
+                }
+            };
+        }
+        ok_table(Ok(entries_list))
+    } else {
+        wrap_err!("fs.listdir: expected path at '{}' to be a directory, but found a file", &dir_path)
     }
 }
 
+// modifies the passed Vec<String> in place
+fn list_dir_recursive<P: AsRef<Path>>(path: P, list: &mut Vec<String>) -> LuaEmptyResult {
+    for entry in (fs::read_dir(&path)?).flatten() {
+        let current_path = entry.path();
+        if current_path.is_dir() {
+            list_dir_recursive(&path, list)?;
+        } else if let Some(path_string) = current_path.to_str() {
+            list.push(path_string.to_string())
+        }
+    }
+    Ok(())
+}
+
+/// iterate over the lines of a file. you can use this within a for loop
+/// or put the function this returns in a local and call it repeatedly ala `local nextline = fs.readlines(filepath); local i, line = nextline()`
 fn fs_readlines(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let file_path = match value {
         LuaValue::String(path) => path.to_string_lossy(),
@@ -99,102 +143,10 @@ pub fn fs_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let bytes = match fs::read(&file_path) {
         Ok(bytes) => bytes,
         Err(err) => {
-            match err.kind() {
-                io::ErrorKind::NotFound =>
-                    return wrap_err!("fs.readfile: File not found: {}", file_path),
-                io::ErrorKind::PermissionDenied =>
-                    return wrap_err!("fs.readfile: Permission denied: {}", file_path),
-                other => {
-                    return wrap_err!("fs.readfile: Error reading file: {}", other);
-                }
-            }
+            return wrap_io_read_errors(err, "fs.readfile", &file_path);
         }
     };
     Ok(LuaValue::String(luau.create_string(bytes)?))
-}
-
-// helper function for fs.readbytes and Entry:readbytes
-pub fn read_entry_path_into_buffer(luau: &Lua, entry_path: String, mut multivalue: LuaMultiValue, function_name: &str) -> LuaValueResult {
-    let file_size = {
-        match fs::metadata(&entry_path) {
-            Ok(metadata) => metadata.len() as i32,
-            Err(err) => {
-                return entry::wrap_io_read_errors(err, function_name, &entry_path);
-            }
-        }
-    };
-    let start = match multivalue.pop_front() {
-        Some(LuaValue::Integer(n)) => {
-            if n >= 0 {
-                Some(n)
-            } else if n > file_size {
-                return wrap_err!("{}: start byte s ({}) outside file bounds ({})", function_name, n, file_size);
-            } else {
-                return wrap_err!("{}: start byte s must be >= 0!!", function_name);
-            }
-        },
-        Some(other) => return wrap_err!("{}(file_path, s: number?, f: number?) expected s to be a number, got: {:#?}", function_name, other),
-        None => None,
-    };
-    let finish = match multivalue.pop_front() {
-        Some(LuaValue::Integer(n)) => {
-            if n > 0 { 
-                Some(n)
-            } else if n > file_size {
-                return wrap_err!("{}: final byte f ({}) outside file bounds ({})", function_name, n, file_size);
-            } else {
-                return wrap_err!("{}: final byte f must be positive!!", function_name);
-            }
-        },
-        Some(other) => return wrap_err!("{}(file_path, s: number?, f: number?) expected f to be a number, got: {:#?}", function_name, other),
-        None => {
-            if start.is_some() {
-                return wrap_err!("{}(file_path, s: number, f: number): missing final byte f; if s is provided then f must also be provided", function_name);
-            } else {
-                None
-            }
-        },
-    };
-
-    if let Some(start) = start {
-        // read specific section of file
-        let finish = finish.unwrap();
-
-        let mut file = match fs::File::open(&entry_path) {
-            Ok(f) => f,
-            Err(err) => {
-                return wrap_err!("{}(file_path, s: number?, f: number?) error reading path: {}", function_name, err);
-            }
-        };
-    
-        // Calculate the number of bytes to read
-        let num_bytes = (finish - start) as usize;
-        let mut buffer = vec![0; num_bytes];
-    
-        // Seek to the start position
-        if let Err(err) = file.seek(std::io::SeekFrom::Start(start as u64)) {
-            return wrap_err!("{}: error seeking to start position: {}", function_name, err);
-        }
-    
-        // Read the requested bytes
-        match file.read_exact(&mut buffer) {
-            Ok(_) => {
-                let buffy = luau.create_buffer(&buffer)?;
-                Ok(LuaValue::Buffer(buffy))
-            },
-            Err(err) => wrap_err!("{}: error reading bytes: {}", function_name, err),
-        }
-    } else {
-        // read the whole thing
-        let bytes = match fs::read(&entry_path) {
-            Ok(bytes) => bytes,
-            Err(err) => {
-                return wrap_err!("{}: failed to read file with error: {}", function_name, err);
-            }
-        };
-        let buffy = luau.create_buffer(bytes)?;
-        Ok(LuaValue::Buffer(buffy))
-    }
 }
 
 // Reads file into luau buffer
@@ -207,8 +159,7 @@ pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult
             return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected to be called with self.");
         }
     };
-
-    read_entry_path_into_buffer(luau, entry_path, multivalue, "fs.readbytes")
+    file_entry::read_entry_path_into_buffer(luau, entry_path, multivalue, "fs.readbytes")
 }
 
 // fs.writefile(path: string, content: string | buffer): ()
@@ -246,10 +197,6 @@ pub fn fs_writefile(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResul
             entry::wrap_io_read_errors_empty(err, "fs.writefile", &file_path)
         }
     }
-}
-
-fn does_file_exist(file_path: &str) -> bool {
-    fs::metadata(file_path).is_ok()
 }
 
 // fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
