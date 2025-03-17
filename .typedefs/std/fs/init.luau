@@ -1,6 +1,6 @@
 export type Fs = {
 	readfile: (path: string) -> string,
-	readbytes: (path: string, init: number?, final: number?) -> buffer,
+	readbytes: (path: string, target_buffer: buffer, buffer_offset: number, file_offset: number?, count: number?) -> (),
 	readlines: (path: string) -> () -> () -> (number, string),
 
 	writefile: (path: string, content: string | buffer) -> (),
@@ -67,7 +67,7 @@ type FileEntry = {
 	type: "File",
 	size: (self: FileEntry) -> number,
 	read: (self: FileEntry) -> string,
-	readbytes: (self: FileEntry, init: number?, final: number?) -> buffer,
+	readbytes: (self: FileEntry, target_buffer: buffer, buffer_offset: number, file_offset: number?, count: number?) -> (),
 	append: (self: FileEntry, content: string | buffer) -> (),
 	readlines: (self: FileEntry) -> () -> (number, string),
 	is_valid_utf8: (self: FileEntry) -> boolean,
