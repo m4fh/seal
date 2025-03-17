@@ -6,7 +6,7 @@ export type Fs = {
 	writefile: (path: string, content: string | buffer) -> (),
 	removefile: (path: string) -> (),
 
-	listdir: (path: string) -> { string },
+	listdir: (path: string, recursive: boolean?) -> { string },
 	makedir: (path: string) -> (),
 
 	writetree: (path: string, children: DirectoryChildren) -> (),
