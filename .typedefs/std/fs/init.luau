@@ -1,3 +1,5 @@
+--!nocheck
+
 export type Fs = {
 	readfile: (path: string) -> string,
 	readbytes: (path: string, target_buffer: buffer, buffer_offset: number, file_offset: number?, count: number?) -> (),
