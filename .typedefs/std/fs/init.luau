@@ -98,11 +98,9 @@ type DirectoryEntry = {
 }
 
 type FsMetadata = {
-	-- time.UtcDateTime is not exported yet (afaik)
-
-	-- created_at: time.UtcDateTime?,
-	-- modified_at: time.UtcDateTime?,
-	-- accessed_at: time.UtcDateTime?,
+	created_at: datetime.DateTimeUtc?,
+	modified_at: datetime.DateTimeUtc?,
+	accessed_at: datetime.DateTimeUtc?,
 
 	permissions: {
 		readonly: boolean,
