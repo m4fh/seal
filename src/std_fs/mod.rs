@@ -726,7 +726,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("writefile", fs_writefile)?
         .with_function("move", fs_move)?
         .with_function("remove", fs_remove)?
-        .with_function("list", fs_listdir)?
+        .with_function("listdir", fs_listdir)?
         .with_function("readlines", fs_readlines)?
         // .with_function("entries", fs_entries)?
         // .with_function("find", fs_find)?
