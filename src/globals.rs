@@ -16,7 +16,6 @@ const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn set_globals(luau: &Lua) -> LuaValueResult {
     let globals: LuaTable = luau.globals();
     let luau_version: LuaString = globals.raw_get("_VERSION")?;
-    globals.raw_set("require", luau.create_function(require::require)?)?;
     globals.raw_set("error", luau.create_function(error)?)?;	
     globals.raw_set("p", luau.create_function(std_io_output::debug_print)?)?;
     globals.raw_set("pp", luau.create_function(std_io_output::pretty_print_and_return)?)?;
@@ -30,7 +29,6 @@ pub fn set_globals(luau: &Lua) -> LuaValueResult {
         // )?
         .build()?
     )?;
-    globals.raw_set("_REQUIRE_CACHE", TableBuilder::create(luau)?.build()?)?;
 
     Ok(LuaNil)
 }
