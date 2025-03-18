@@ -3,7 +3,7 @@ local datetime = require("@std/time/datetime")
 
 export type Fs = {
 	readfile: (path: string) -> string,
-	readbytes: (path: string, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number?) -> (),
+	readbytes: (path: string, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number) -> (),
 	readlines: (path: string) -> () -> (number, string),
 
 	writefile: (path: string, content: string | buffer) -> (),
@@ -43,7 +43,7 @@ export type FileEntry = {
 	type: "File",
 	read: (self: FileEntry) -> string,
 	size: (self: FileEntry) -> number,
-	readbytes: (self: FileEntry, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number?) -> (),
+	readbytes: (self: FileEntry, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number) -> (),
 	readlines: (self: FileEntry) -> () -> (number, string),
 	append: (self: FileEntry, content: buffer | string) -> (),
 	is_valid_utf8: (self: FileEntry) -> boolean,

@@ -71,11 +71,11 @@ fn fs_listdir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
 }
 
 // modifies the passed Vec<String> in place
-fn list_dir_recursive<P: AsRef<Path>>(path: P, list: &mut Vec<String>) -> LuaEmptyResult {
-    for entry in (fs::read_dir(&path)?).flatten() {
+fn list_dir_recursive(path: &str, list: &mut Vec<String>) -> LuaEmptyResult {
+    for entry in (fs::read_dir(path)?).flatten() {
         let current_path = entry.path();
         if current_path.is_dir() {
-            list_dir_recursive(&path, list)?;
+            list_dir_recursive(path, list)?;
         } else if let Some(path_string) = current_path.to_str() {
             list.push(path_string.to_string())
         }
@@ -149,17 +149,20 @@ pub fn fs_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
     Ok(LuaValue::String(luau.create_string(bytes)?))
 }
 
-// Reads file into luau buffer
-pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+/// fs.readbytes(path: string, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number)
+pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+    let function_name_and_args = "fs.readbytes(path: string, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number)";
     let entry_path: String = match multivalue.pop_front() {
         Some(LuaValue::String(file_path)) => file_path.to_string_lossy(),
         Some(other) => 
-            return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected file path to be a string, got: {:#?}", other),
+            return wrap_err!("{} expected path to be a string, got: {:#?}", function_name_and_args, other),
         None => {
-            return wrap_err!("fs.readbytes(file_path, s: number?, f: number?) expected to be called with self.");
+            return wrap_err!("{} incorrectly called with zero arguments", function_name_and_args);
         }
     };
-    file_entry::read_entry_path_into_buffer(luau, entry_path, multivalue, "fs.readbytes")
+    // file_entry::read_entry_path_into_buffer(luau, entry_path, multivalue, "fs.readbytes")
+    file_entry::read_file_into_buffer(luau, &entry_path, multivalue, function_name_and_args)?;
+    Ok(())
 }
 
 // fs.writefile(path: string, content: string | buffer): ()
