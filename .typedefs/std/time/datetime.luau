@@ -14,13 +14,13 @@ local datetime = {
     }
 }
 
-type DateTimeLocal = {
+export type DateTimeLocal = {
 	unix_timestamp: number,
 	--- format a DateTime with Rust chrono format string
 	format: (self: DateTimeLocal, format: string) -> string,
 }
 
-type DateTimeUtc = {
+export type DateTimeUtc = {
 	unix_timestamp: number,
 	--- format a DateTime with Rust chrono format string
 	format_utc: (self: DateTimeUtc, format: string) -> string,
