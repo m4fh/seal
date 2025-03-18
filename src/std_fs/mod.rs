@@ -14,6 +14,7 @@ use crate::{std_io_colors as colors, wrap_err, LuaEmptyResult};
 pub mod entry;
 pub mod pathlib;
 pub mod file_entry;
+pub mod directory_entry;
 
 /// fs.listdir(path: string, recursive: boolean?): { string }
 fn fs_listdir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
@@ -26,61 +27,7 @@ fn fs_listdir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
             return wrap_err!("fs.listdir(path: string, recursive: boolean?) called without any arguments");
         }
     };
-
-    let recursive = match multivalue.pop_front() {
-        Some(LuaValue::Boolean(recursive)) => recursive,
-        Some(LuaNil) => false,
-        Some(other) => {
-            return wrap_err!("fs.listdir(path: string, recursive: boolean?) expected recursive to be a boolean (default false), got: {:#?}", other);
-        }
-        None => false,
-    };
-
-    let metadata = match fs::metadata(&dir_path) {
-        Ok(metadata) => metadata,
-        Err(err) => {
-            return entry::wrap_io_read_errors(err, "fs.listdir", &dir_path);
-        }
-    };
-    if metadata.is_dir() {
-        let entries_list = luau.create_table()?;
-        if recursive {
-            let mut list_vec = Vec::new();
-            match list_dir_recursive(&dir_path, &mut list_vec) {
-                Ok(()) => {},
-                Err(err) => {
-                    return wrap_err!("fs.listdir: unable to recursively iterate over path: {}", err);
-                }
-            };
-            let list_vec = list_vec; // make immutable again
-            for list_path in list_vec {
-                entries_list.push(list_path)?;
-            }
-        } else {
-            for entry in fs::read_dir(&dir_path)? {
-                let entry = entry?;
-                if let Some(entry_path) = entry.path().to_str() {
-                    entries_list.push(entry_path)?;
-                }
-            };
-        }
-        ok_table(Ok(entries_list))
-    } else {
-        wrap_err!("fs.listdir: expected path at '{}' to be a directory, but found a file", &dir_path)
-    }
-}
-
-// modifies the passed Vec<String> in place
-fn list_dir_recursive(path: &str, list: &mut Vec<String>) -> LuaEmptyResult {
-    for entry in (fs::read_dir(path)?).flatten() {
-        let current_path = entry.path();
-        if current_path.is_dir() {
-            list_dir_recursive(path, list)?;
-        } else if let Some(path_string) = current_path.to_str() {
-            list.push(path_string.to_string())
-        }
-    }
-    Ok(())
+    directory_entry::listdir(luau, dir_path, multivalue, "fs.listdir(path: string, recursive: boolean?)")
 }
 
 /// iterate over the lines of a file. you can use this within a for loop
@@ -722,15 +669,31 @@ pub fn create_filelib(luau: &Lua) -> LuaResult<LuaTable> {
         .build_readonly()
 }
 
+fn fs_dir_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let path = match value {
+        LuaValue::String(path) => path.to_string_lossy(),
+        other => {
+            return wrap_err!("fs.dir.from(path) expected path to be a string, got: {:#?}", other);
+        }
+    };
+    ok_table(directory_entry::create(luau, path))
+}
+
+pub fn create_dirlib(luau: &Lua) -> LuaResult<LuaTable> {
+    TableBuilder::create(luau)?
+        .with_function("from", fs_dir_from)?
+        .build_readonly()
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     let std_fs = TableBuilder::create(luau)?
         .with_function("readfile", fs_readfile)?
         .with_function("readbytes", fs_readbytes)?
+        .with_function("readlines", fs_readlines)?
         .with_function("writefile", fs_writefile)?
         .with_function("move", fs_move)?
         .with_function("remove", fs_remove)?
         .with_function("listdir", fs_listdir)?
-        .with_function("readlines", fs_readlines)?
         // .with_function("entries", fs_entries)?
         // .with_function("find", fs_find)?
         // .with_function("file", fs_find_file)?
@@ -739,6 +702,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("exists", fs_exists)?
         .with_value("path", pathlib::create(luau)?)?
         .with_value("file", create_filelib(luau)?)?
+        .with_value("dir", create_dirlib(luau)?)?
         .build_readonly()?;
 
     Ok(std_fs)

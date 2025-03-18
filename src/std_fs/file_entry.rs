@@ -390,8 +390,8 @@ pub fn create(luau: &Lua, path: String) -> LuaResult<LuaTable> {
 
     TableBuilder::create(luau)?
         .with_value("name", base_name)?
-        .with_value("type", "File")?
         .with_value("path", original_path)?
+        .with_value("type", "File")?
         .with_function("size", file_filesize)?
         .with_function("read", file_readfile)?
         .with_function("readbytes", file_readbytes)?
