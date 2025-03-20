@@ -13,3 +13,5 @@ local success, result = pcall(function()
 end)
 
 assert(success == false, "interop.mlua.isint isnt erroring on invalid input?")
+
+assert(mlua.iserror(result) == true, "mlua error is made of error")

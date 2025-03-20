@@ -13,4 +13,10 @@ function mlua.isint(n: number): boolean
 	return nil :: any
 end
 
+--- Returns `true` if `e` is an mlua Error, false otherwise
+@checked
+function mlua.iserror(e: any): boolean
+	return nil :: any
+end
+
 return mlua

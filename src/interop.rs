@@ -15,9 +15,21 @@ fn interop_mlua_isint(_luau: &Lua, n: LuaValue) -> LuaValueResult {
     }
 }
 
+fn interop_mlua_iserror(_luau: &Lua, value: LuaValue) -> LuaValueResult {
+    match value {
+        LuaValue::Error(_err) => {
+            Ok(LuaValue::Boolean(true))
+        },
+        _other => {
+            Ok(LuaValue::Boolean(false))
+        }
+    }
+}
+
 pub fn create_mlua(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("isint", interop_mlua_isint)?
+        .with_function("iserror", interop_mlua_iserror)?
         .build_readonly()
 }
 
