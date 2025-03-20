@@ -23,6 +23,7 @@ local default_luaurc = {
 	languageMode = "strict",
 	aliases = {
 		std = `.{sep}.typedefs{sep}std{sep}`,
+		interop = `.{sep}.typedefs{sep}interop{sep}`,
 	} :: { [string]: string }
 }
 

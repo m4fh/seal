@@ -5,6 +5,7 @@
 	},
 	"aliases": {
 		"std": "./.typedefs/std/",
+		"interop": "./.typedefs/interop/",
 		"tests": "./tests/luau/",
 		"data": "./tests/data/"
 	}
