@@ -248,9 +248,6 @@ local function process_pretty_values(
 ): string
     seen_tables = seen_tables or {}
     local depth = depth or 0
-    if depth > 6 then
-        return "DEPTH EXCEEDED"
-    end
     local current_indent = string.rep("    ", depth)
     if type(value) == "table" then
         local value = value :: { [any]: any }
@@ -291,6 +288,9 @@ local function process_pretty_values(
                 local seen_name = seen_tables[key]
                 if seen_name then
                     result ..= "[" .. colors.bold.white(seen_name) .. "]"
+                elseif depth + 1 > 6 then
+                    local tableid = string.match(tostring(key), ID_CATCHER_PATTERN)
+                    result ..= "[" .. colors.cyan(`table<0x{tableid}>`) .. "]"
                 else
                     result ..= "[" .. process_pretty_values(key, seen_tables, depth + 1) .. "]"
                 end
@@ -312,6 +312,8 @@ local function process_pretty_values(
                     else
                         result ..= "other cyclic"
                     end
+                elseif depth + 1 > 6 then
+                    result ..= "{" .. colors.codes.BOLD_WHITE .. "..." .. RESET .. "}"
                 else
                     result ..= process_pretty_values(val, seen_tables, depth + 1)
                     seen_tables[val] = tostring(key)

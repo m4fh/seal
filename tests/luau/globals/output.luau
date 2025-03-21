@@ -15,3 +15,5 @@ local s, f = pcall(function()
 	return fs.readfile("./startaftatafrst.")
 end)
 p(f)
+
+print(package)
