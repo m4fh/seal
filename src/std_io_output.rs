@@ -195,11 +195,12 @@ pub fn strip_newlines_and_colors(input: &str) -> String {
 
 fn output_unformat(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let input = match value {
-        LuaValue::String(i) => i.to_string_lossy(),
+        LuaValue::String(s) => s.to_string_lossy(),
         other => {
             return wrap_err!("expected string to strip formatting of, got: {:#?}", other)
         }
     };
+    let input = strip_newlines_and_colors(&input);
     Ok(LuaValue::String(
         luau.create_string(input.as_str())?
     ))
