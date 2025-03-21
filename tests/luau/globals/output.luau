@@ -9,3 +9,9 @@ local b = {
 b.b = b
 
 print(b)
+
+local fs = require("@std/fs")
+local s, f = pcall(function()
+	return fs.readfile("./startaftatafrst.")
+end)
+p(f)
