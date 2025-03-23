@@ -301,19 +301,16 @@ local function process_pretty_values(
             result ..= " = "
             -- stringify values
             if typeof(val) == "table" then
-                if not seen_tables[val] then
-                    seen_tables[val] = tostring(key)
-                end
-                if val == value then
-                    local seen_name = seen_tables[value]
-                    if seen_name then
-                        -- result ..= colors.bold.white(seen_name)
-                        result ..= colors.codes.BOLD_YELLOW .. seen_name .. RESET
-                    else
-                        result ..= "other cyclic"
-                    end
+                local seen_name = seen_tables[val]
+                if seen_name then
+                    result ..= colors.codes.BOLD_YELLOW .. seen_name .. RESET
                 elseif depth + 1 > 6 then
-                    result ..= "{" .. colors.codes.BOLD_WHITE .. "..." .. RESET .. "}"
+                    -- next(val) is nil if the table has no elements
+                    if next(val :: any) == nil then
+                        result ..= "{}"
+                    else
+                        result ..= "{" .. colors.codes.BOLD_WHITE .. "..." .. RESET .. "}"
+                    end
                 else
                     result ..= process_pretty_values(val, seen_tables, depth + 1)
                     seen_tables[val] = tostring(key)
