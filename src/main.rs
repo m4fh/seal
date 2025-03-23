@@ -24,6 +24,7 @@ mod std_crypt;
 mod std_testing;
 mod globals;
 mod require;
+mod interop;
 
 use crate::std_io_colors as colors;
 

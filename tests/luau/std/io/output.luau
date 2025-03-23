@@ -28,3 +28,5 @@ output.ewrite("bye")
 output.write("stasrtfwa")
 
 output.clear()
+
+output.sprint("hi")
