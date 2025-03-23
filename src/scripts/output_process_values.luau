@@ -301,19 +301,20 @@ local function process_pretty_values(
             result ..= " = "
             -- stringify values
             if typeof(val) == "table" then
+                local val = val :: { [any]: any }
+
                 local seen_name = seen_tables[val]
                 if seen_name then
                     result ..= colors.codes.BOLD_YELLOW .. seen_name .. RESET
                 elseif depth + 1 > 6 then
-                    -- next(val) is nil if the table has no elements
-                    if next(val :: any) == nil then
+                    if next(val) == nil then -- table is empty
                         result ..= "{}"
                     else
                         result ..= "{" .. colors.codes.BOLD_WHITE .. "..." .. RESET .. "}"
                     end
                 else
-                    result ..= process_pretty_values(val, seen_tables, depth + 1)
                     seen_tables[val] = tostring(key)
+                    result ..= process_pretty_values(val, seen_tables, depth + 1)
                 end
             else
                 result ..= process_pretty_values(val, seen_tables, depth + 1)
@@ -388,72 +389,6 @@ local function process_pretty_values(
         return tostring(value)
     end
 end
-
--- local meow = {
---     fed = false,
---     data = {
---         ["/opt/idk/2"] = "safe",
---     },
---     cats = {
---         Taz = 1,
---         Nan = 2,
---     },
---     doer = function()
-        
---     end,
---     [{ "i am a key" }] = true,
---     [1.25] = 1,
---     [vector.create(1, 2, 2312311.23)] = 12,
--- }
--- meow.a = meow
--- meow.cats.newcat = meow.cats
--- meow.meow = meow.cats.newcat
--- local buffy = buffer.create(32)
--- meow.b = buffy
--- local v = vector.create(0, 12, 2)
--- meow.v = v
-
--- local s, r = pcall(function()
---     local fs = require("@std/fs")
---     fs.readfile("we are an error. short days ago we were also error")
--- end)
-
--- meow.err = r
--- get_table_id(meow)
-
--- local user = newproxy()
-
--- meow.u = user
-
--- local coro = coroutine.create(function()
-
--- end)
-
--- meow.coro = coro
-
--- local seen_tables = {}
--- -- print(process_raw_values(meow, seen_tables))
--- -- print(`print(meow.err): {tostring(meow.err)}`)
-
--- local prettyvalues = {
---     a = 1,
---     [1] = "hi",
---     [2] = "meow",
---     [3] = "stasrtawf",
---     b = "3",
---     [1.25] = 4,
---     ["hello world"] = true,
---     ["emowtsartatf"] = {},
---     ["/opt/cats/1"] = true,
---     [buffer.create(12)] = "hi",
---     location = vector.create(1, 2, 4),
--- }
-
--- meow.pretty = prettyvalues
-
--- local output = require("@std/io/output")
-
--- output.write(process_pretty_values(meow, {}) .. "\n")
 
 return {
     simple_print = process_raw_values,
