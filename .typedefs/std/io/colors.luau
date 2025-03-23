@@ -29,6 +29,11 @@ export type colors = {
         white: (text: string) -> string,
     },
 
+    style: {
+        dim: (text: string) -> string,
+        bold: (text: string) -> string,
+    },
+
     codes: {
         RESET: "\x1b[0m",
         BLACK: "\x1b[30m",
@@ -71,10 +76,12 @@ export type colors = {
         BRIGHT_MAGENTA_BG: "\x1b[105m",
         BRIGHT_CYAN_BG: "\x1b[106m",
         BRIGHT_WHITE_BG: "\x1b[107m",
+        BOLD: "\x1b[1m",
+        DIM: "\x1b[2m",
     }
 }
 
--- yeah so apparently you can't put moonwave docs in typedes so please
+-- yeah so apparently you can't put moonwave docs in typedefs so please
 -- don't pray for my sanity wrt. the below code because even tho copilot couldn't handle it 
 -- i used a luau script (with this runtime ofc)
 
@@ -345,5 +352,7 @@ colors.codes = {
 	BRIGHT_MAGENTA_BG = "\x1b[105m",
 	BRIGHT_CYAN_BG = "\x1b[106m",
 	BRIGHT_WHITE_BG = "\x1b[107m",
+    BOLD = "\x1b[1m",
+    DIM = "\x1b[2m",
 }
 return colors

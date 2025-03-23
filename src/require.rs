@@ -10,7 +10,7 @@ pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
         }
     };
 
-    if path.starts_with("@std") {
+    if path.starts_with("@std") || path.starts_with("@interop") {
         get_standard_library(luau, path)
     } else {
         let path = resolve_path(luau, path)?;
@@ -114,6 +114,8 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
                 .build_readonly()
             )
         },
+        "@interop" => ok_table(interop::create(luau)),
+        "@interop/mlua" => ok_table(interop::create_mlua(luau)),
         other => {
             wrap_err!("program required an unexpected standard library: {}", other)
         }

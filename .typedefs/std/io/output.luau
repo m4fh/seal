@@ -23,12 +23,27 @@ output["debug-print"]({
 ]=]
 local output = {}
 
---- prettifies and colorizes any Luau values in the same way as `print`
-function output.format(...: any): ...string
+--- prettifies and colorizes any Luau value in the same way as `print`
+function output.format(v: any): ...string
 	return nil :: any
 end
 
---- an uncolorized print for debugging that returns the printed values; same as the included global `p`.
+--- reverts output.format or colorizing from print/pp
+function output.unformat(v: any): string
+	return nil :: any
+end
+
+--- simple print and return; equivalent to `p`
+function output.sprint<T>(v: T): T
+	return nil :: any
+end
+
+--- formats any value in simple format style (equivalent to `p`)
+function output.sformat(v: any): string
+	return nil :: any
+end
+
+--- an uncolorized print for debugging that returns the printed values
 output["debug-print"] = function(...: any): ...string
 	return nil :: any
 end
