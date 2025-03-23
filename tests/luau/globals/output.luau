@@ -99,3 +99,23 @@ local nested_tables = {
 }
 
 print(nested_tables)
+
+print("hi")
+
+print({ a=  "we", "are", "seal"})
+
+print(vector.create(1, 2, 3))
+
+local array_with_many_values = {}; for i = 1, 1001 do table.insert(array_with_many_values, i) end
+-- print(array_with_many_values)
+
+local fs = require("@std/fs")
+
+local src = fs.readfile("./src/error_handling.rs")
+
+local with_newline_strings = {
+	"tafwtfatfwtfwaw\n2321tsartfwat hrsdasrad \n \n 22312",
+	cats = "nanuk\nTaz",
+	src = src,
+}
+print(with_newline_strings)

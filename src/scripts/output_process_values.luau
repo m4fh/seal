@@ -170,48 +170,58 @@ end
 local RESET = colors.codes.RESET
 local BOLD_WHITE = colors.codes.BOLD_WHITE
 local RED = colors.codes.RED
+local BOLD_RED = colors.codes.BOLD_RED
 local CYAN = colors.codes.CYAN
 local MAGENTA = colors.codes.MAGENTA
+local BOLD_MAGENTA = colors.codes.BOLD_MAGENTA
 local BLUE = colors.codes.BLUE
 local BOLD_BLUE = colors.codes.BOLD_BLUE
 local GREEN = colors.codes.GREEN
 local YELLOW = colors.codes.YELLOW
 local BOLD_YELLOW = colors.codes.BOLD_YELLOW
 local BLACK = colors.codes.BLACK
+local BOLD = colors.codes.BOLD
+local DIM = colors.codes.DIM
+
+local LEFT_BRACKET = DIM .. "[" .. RESET
+local RIGHT_BRACKET = DIM .. "]" .. RESET
+
+local LEFT_ANGLED = BOLD .. DIM .. "<" .. RESET
+local RIGHT_ANGLED = BOLD .. DIM .. ">" .. RESET
 
 local ID_CATCHER_PATTERN = "[.]*0x0*([%d%w]+)"
 
 local function stringify_simple_type(value: any): string
     if type(value) == "number" then
-        if not mlua.isint(value) and math.round(value) == value then
-            return BLUE .. tostring(value) .. ".0" .. RESET
-        else
+        -- mlua Numbers are BOLD_BLUE and Integers are regular BLUE
+        if mlua.isint(value) then
             return BLUE .. tostring(value) .. RESET
+        else
+            return BOLD_BLUE .. tostring(value) .. (if math.round(value) == value then ".0" else "") .. RESET
         end
     elseif type(value) == "string" then
         return GREEN .. '"' .. value .. '"' .. RESET
     elseif type(value) == "boolean" then
         return YELLOW .. tostring(value) .. RESET
     elseif type(value) == "vector" then
-        return `{RED}vector<{BOLD_BLUE}{value.x}{CYAN}, {BOLD_BLUE}{value.y}{CYAN}, {BOLD_BLUE}{value.z}{RESET}{RED}>{RESET}`
+        return BOLD_RED .. "vector" .. RESET .. LEFT_ANGLED
+               .. BOLD_BLUE .. value.x .. CYAN .. ", "
+               .. BOLD_BLUE .. value.y .. CYAN .. ", "
+               .. BOLD_BLUE .. value.z .. CYAN ..
+               (if VECTOR_FOUR_WIDE_MODE then ", " ..
+                  BOLD_BLUE .. value.w
+               else "") 
+               .. RED .. RIGHT_ANGLED .. RESET
     elseif type(value) == "function" then
         local function_id = string.match(tostring(value), ID_CATCHER_PATTERN)
         local last_five = string.sub(function_id, #function_id - 4, # function_id)
         local first_part = string.sub(function_id, 1, #function_id - 5)
-        if function_id then
-            return RED .. "function<0x" .. first_part .. colors.bold.red(last_five) .. RESET .. RED .. ">" .. RESET
-        else
-            return RED .. "function" .. RESET
-        end
+        return BOLD_RED .. "function" .. RESET .. LEFT_ANGLED .. RED .. "0x" ..  first_part .. colors.bold.red(last_five) .. RESET .. RED .. RIGHT_ANGLED
     elseif type(value) == "buffer" then
         local buffer_id = string.match(tostring(value), ID_CATCHER_PATTERN)
         local last_five = string.sub(buffer_id, #buffer_id - 4, # buffer_id)
         local first_part = string.sub(buffer_id, 1, #buffer_id - 5)
-        if buffer_id then
-            return MAGENTA .. "buffer<0x" .. first_part .. colors.bold.magenta(last_five) .. RESET .. MAGENTA .. ">" .. RESET
-        else
-            return MAGENTA .. "buffer" .. RESET
-        end
+        return BOLD_MAGENTA .. "buffer" .. RESET .. LEFT_ANGLED .. MAGENTA .. "0x" .. first_part .. colors.bold.magenta(last_five) .. RESET .. MAGENTA .. RIGHT_ANGLED
     elseif mlua.iserror(value) then
         local stringified_error = tostring(value)
         local errsplit = string.split(stringified_error, "\n")
@@ -223,30 +233,26 @@ local function stringify_simple_type(value: any): string
                 table.insert(errmsglist, m)
             end
         end
-        return colors.codes.BOLD_RED .. "error" .. RESET .. RED .. "<" .. table.concat(errmsglist) .. ">" .. RESET
+        return BOLD_RED .. "error" .. RESET .. RED .. LEFT_ANGLED .. table.concat(errmsglist) .. RIGHT_ANGLED
     elseif type(value) == "thread" then
         local thread_id = string.match(tostring(value), ID_CATCHER_PATTERN)
-        if thread_id then
-            return "corothread<" .. thread_id .. ">"
-        else
-            return "coroutinethread"
-        end
+        return "corothread" .. LEFT_ANGLED .. "0x" .. thread_id .. RIGHT_ANGLED
     elseif type(value) == "table" then -- treat a table as a simple value
         local table_id = string.match(tostring(value), ID_CATCHER_PATTERN)
         local last_five = string.sub(table_id, #table_id - 4, # table_id)
         local first_part = string.sub(table_id, 1, #table_id - 5)
-        return "table<0x" .. first_part .. BOLD_WHITE .. last_five .. RESET .. ">"
+        return BOLD_WHITE .. "table" .. RESET .. LEFT_ANGLED .. "0x" .. first_part .. BOLD_WHITE .. last_five .. RESET .. RIGHT_ANGLED
     elseif type(value) == "userdata" then
+        local userdata_id = string.match(tostring(value), ID_CATCHER_PATTERN)
         local typeof_userdata = typeof(value)
-        if typeof_userdata ~= "userdata" then
-            return colors.bold.magenta(typeof_userdata)
-        else
-            local userdata_id = string.match(tostring(value), ID_CATCHER_PATTERN)
-            if userdata_id then
-                return MAGENTA .. "userdata<0x" .. userdata_id .. ">" .. RESET
+        if typeof_userdata ~= "userdata" then -- userdatas with custom names
+            if typeof_userdata ~= "null" and typeof_userdata ~= "undefined" then -- json null & undefined dont need address printed
+                return BOLD_MAGENTA .. typeof_userdata .. RESET .. LEFT_ANGLED .. MAGENTA .. userdata_id .. RESET .. RIGHT_ANGLED
             else
-                return MAGENTA .. "userdata" .. RESET
+                return colors.bold.magenta(typeof_userdata)
             end
+        else
+            return BOLD_MAGENTA .. "userdata" .. RESET .. LEFT_ANGLED .. "0x" .. userdata_id .. RIGHT_ANGLED
         end
     else
         return tostring(value)
@@ -260,13 +266,12 @@ local function stringify_table_path(current_table_path: { any }): string
             if string.match(level, IDENTIFIER_PATTERN) then
                 table_path ..= "." .. level
             else
-                -- table_path ..= "[\"" .. level .. "\"]"
-                table_path ..= "[" .. GREEN .. '"' .. level .. '"' .. RESET .. "]"
+                table_path ..= LEFT_BRACKET .. GREEN .. '"' .. level .. '"' .. RESET .. RIGHT_BRACKET
             end
         elseif typeof(level) == "number" then
-            table_path ..= "[" .. BLUE .. level .. RESET .. "]"
+            table_path ..= LEFT_BRACKET .. BLUE .. level .. RESET .. RIGHT_BRACKET
         else
-            table_path ..= "[" .. stringify_simple_type(level) .. "]"
+            table_path ..= LEFT_BRACKET .. stringify_simple_type(level) .. RIGHT_BRACKET
         end
     end
     return table_path
@@ -371,39 +376,59 @@ local function process_pretty_values(
             -- stringify keys
             local key_type = type(key)
             if key_type == "number" then
-                result ..= "["
+                -- left pad array keys by prepending spaces in front of [
+                -- so the = signs are aligned
+                if #value > 10 and #value < 100 then
+                    if key < 10 then
+                        result ..= " "
+                    end
+                elseif #value > 100 and #value < 1000 then
+                    if key < 10 then
+                        result ..= "  "
+                    elseif key < 100 then
+                        result ..= " "
+                    end
+                elseif #value > 1000 then
+                    if key < 10 then
+                        result ..= "   "
+                    elseif key < 100 then
+                        result ..= "  "
+                    elseif key < 1000 then
+                        result ..= " "
+                    end
+                end
+                result ..= LEFT_BRACKET
                        .. if mlua.isint(key) then BLUE .. tostring(key) .. RESET
-                          else MAGENTA .. tostring(key) .. RESET
-                result ..= "]" 
+                          else BOLD_BLUE .. tostring(key) .. RESET
+                result ..= RIGHT_BRACKET
             elseif key_type == "string" then
                 if string.match(key, IDENTIFIER_PATTERN) then
                     result ..= key
                 else
-                    result ..= `[{GREEN}"{key}"{RESET}]`
+                    result ..= LEFT_BRACKET .. GREEN .. '"' .. key .. '"' .. RESET .. RIGHT_BRACKET
                 end
             elseif key_type == "table" then
                 local seen_name = seen_tables[key]
                 if seen_name then
-                    result ..= "[" .. seen_name .. "]"
+                    result ..= LEFT_BRACKET .. seen_name .. RIGHT_BRACKET
                 elseif depth + 1 > 6 then
                     local tableid = string.match(tostring(key), ID_CATCHER_PATTERN)
-                    result ..= "[" .. colors.cyan(`table<0x{tableid}>`) .. "]"
+                    result ..= LEFT_BRACKET .. colors.cyan(`table<0x{tableid}>`) .. RIGHT_BRACKET
                 else
-                    result ..= "[" .. process_pretty_values(key, seen_tables, depth + 1, current_table_path) .. "]"
+                    result ..= LEFT_BRACKET .. process_pretty_values(key, seen_tables, depth + 1, current_table_path) .. RIGHT_BRACKET
                 end
             else
-                result ..= `[{process_pretty_values(key, seen_tables, depth + 1, current_table_path)}]`
+                result ..= LEFT_BRACKET .. process_pretty_values(key, seen_tables, depth + 1, current_table_path) .. RIGHT_BRACKET
             end
 
             result ..= " = "
 
             -- stringify values
-            if typeof(val) == "table" then
+            if type(val) == "table" then
                 local val = val :: { [any]: any }
                 local seen_name = seen_tables[val]
                 if seen_name then
                     result ..= seen_name
-                    -- result ..= colors.codes.BOLD_YELLOW .. seen_name .. RESET
                 elseif depth + 1 > 6 then
                     if next(val) == nil then -- table is empty
                         result ..= "{}"
@@ -418,14 +443,28 @@ local function process_pretty_values(
                     -- pop key from current_table_path after recursion
                     table.remove(current_table_path, #current_table_path)
                 end
+            elseif type(val) == "string" then -- don't recurse in extremely common case
+                if string.find(val, "\n") then
+                    if #val < 42 then
+                        result ..= GREEN .. '"' .. string.gsub(val, "\n", "\\n") .. '"' .. RESET
+                    else
+                        result ..= "(newlined string starts on next line) " ..  GREEN .. "\n" .. val .. RESET .. "\n(end newlined string)"
+                    end
+                else
+                    result ..= GREEN .. '"' .. val .. '"' .. RESET
+                end
+            elseif type(val) == "number" or type(val) == "boolean" then
+                result ..= stringify_simple_type(val)
             else
                 result ..= process_pretty_values(val, seen_tables, depth + 1, current_table_path)
             end
             
-            result ..= ",\n"
+            result ..= DIM .. "," .. RESET .. "\n"
         end
         result ..= current_indent .. "}"
         return result
+    elseif type(value) == "string" and depth == 0 then -- calling print("hello world") shouldn't colorize
+        return value
     else
         return stringify_simple_type(value)
     end
