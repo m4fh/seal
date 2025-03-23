@@ -59,7 +59,7 @@ local prettyvalues = {
 
 meow.pretty = prettyvalues
 
-print(prettyvalues)
+print(meow)
 
 local a = {}
 a.b = { [a] = a }
@@ -83,3 +83,19 @@ cats.catlist = {
 cats.self = cats
 
 print(cats)
+
+local children = {
+	["folders 2"] = {
+		{
+			parts = {}
+		}
+	}
+}
+
+local nested_tables = {
+	children = children,
+	parts = children["folders 2"][1].parts,
+	folders = children["folders 2"],
+}
+
+print(nested_tables)

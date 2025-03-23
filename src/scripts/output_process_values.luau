@@ -167,6 +167,111 @@ local function process_raw_values(
     return result
 end
 
+local RESET = colors.codes.RESET
+local BOLD_WHITE = colors.codes.BOLD_WHITE
+local RED = colors.codes.RED
+local CYAN = colors.codes.CYAN
+local MAGENTA = colors.codes.MAGENTA
+local BLUE = colors.codes.BLUE
+local BOLD_BLUE = colors.codes.BOLD_BLUE
+local GREEN = colors.codes.GREEN
+local YELLOW = colors.codes.YELLOW
+local BOLD_YELLOW = colors.codes.BOLD_YELLOW
+local BLACK = colors.codes.BLACK
+
+local ID_CATCHER_PATTERN = "[.]*0x0*([%d%w]+)"
+
+local function stringify_simple_type(value: any): string
+    if type(value) == "number" then
+        if not mlua.isint(value) and math.round(value) == value then
+            return BLUE .. tostring(value) .. ".0" .. RESET
+        else
+            return BLUE .. tostring(value) .. RESET
+        end
+    elseif type(value) == "string" then
+        return GREEN .. '"' .. value .. '"' .. RESET
+    elseif type(value) == "boolean" then
+        return YELLOW .. tostring(value) .. RESET
+    elseif type(value) == "vector" then
+        return `{RED}vector<{BOLD_BLUE}{value.x}{CYAN}, {BOLD_BLUE}{value.y}{CYAN}, {BOLD_BLUE}{value.z}{RESET}{RED}>{RESET}`
+    elseif type(value) == "function" then
+        local function_id = string.match(tostring(value), ID_CATCHER_PATTERN)
+        local last_five = string.sub(function_id, #function_id - 4, # function_id)
+        local first_part = string.sub(function_id, 1, #function_id - 5)
+        if function_id then
+            return RED .. "function<0x" .. first_part .. colors.bold.red(last_five) .. RESET .. RED .. ">" .. RESET
+        else
+            return RED .. "function" .. RESET
+        end
+    elseif type(value) == "buffer" then
+        local buffer_id = string.match(tostring(value), ID_CATCHER_PATTERN)
+        local last_five = string.sub(buffer_id, #buffer_id - 4, # buffer_id)
+        local first_part = string.sub(buffer_id, 1, #buffer_id - 5)
+        if buffer_id then
+            return MAGENTA .. "buffer<0x" .. first_part .. colors.bold.magenta(last_five) .. RESET .. MAGENTA .. ">" .. RESET
+        else
+            return MAGENTA .. "buffer" .. RESET
+        end
+    elseif mlua.iserror(value) then
+        local stringified_error = tostring(value)
+        local errsplit = string.split(stringified_error, "\n")
+        local errmsglist = {}
+        for _, m in errsplit do
+            if string.find(m, "stack traceback") then
+                break
+            else
+                table.insert(errmsglist, m)
+            end
+        end
+        return colors.codes.BOLD_RED .. "error" .. RESET .. RED .. "<" .. table.concat(errmsglist) .. ">" .. RESET
+    elseif type(value) == "thread" then
+        local thread_id = string.match(tostring(value), ID_CATCHER_PATTERN)
+        if thread_id then
+            return "corothread<" .. thread_id .. ">"
+        else
+            return "coroutinethread"
+        end
+    elseif type(value) == "table" then -- treat a table as a simple value
+        local table_id = string.match(tostring(value), ID_CATCHER_PATTERN)
+        local last_five = string.sub(table_id, #table_id - 4, # table_id)
+        local first_part = string.sub(table_id, 1, #table_id - 5)
+        return "table<0x" .. first_part .. BOLD_WHITE .. last_five .. RESET .. ">"
+    elseif type(value) == "userdata" then
+        local typeof_userdata = typeof(value)
+        if typeof_userdata ~= "userdata" then
+            return colors.bold.magenta(typeof_userdata)
+        else
+            local userdata_id = string.match(tostring(value), ID_CATCHER_PATTERN)
+            if userdata_id then
+                return MAGENTA .. "userdata<0x" .. userdata_id .. ">" .. RESET
+            else
+                return MAGENTA .. "userdata" .. RESET
+            end
+        end
+    else
+        return tostring(value)
+    end
+end
+
+local function stringify_table_path(current_table_path: { any }): string
+    local table_path = BOLD_YELLOW .. "self" .. RESET
+    for _, level in current_table_path do
+        if typeof(level) == "string" then
+            if string.match(level, IDENTIFIER_PATTERN) then
+                table_path ..= "." .. level
+            else
+                -- table_path ..= "[\"" .. level .. "\"]"
+                table_path ..= "[" .. GREEN .. '"' .. level .. '"' .. RESET .. "]"
+            end
+        elseif typeof(level) == "number" then
+            table_path ..= "[" .. BLUE .. level .. RESET .. "]"
+        else
+            table_path ..= "[" .. stringify_simple_type(level) .. "]"
+        end
+    end
+    return table_path
+end
+
 type TablePair = {
     key: any,
     val: any,
@@ -228,33 +333,24 @@ local function sort_table_pairs(unsorted_pairs: { TablePair }): { TablePair }
     return sorted_pairs
 end
 
-local RESET = colors.codes.RESET
-local RED = colors.codes.RED
-local CYAN = colors.codes.CYAN
-local MAGENTA = colors.codes.MAGENTA
-local BLUE = colors.codes.BLUE
-local BOLD_BLUE = colors.codes.BOLD_BLUE
-local GREEN = colors.codes.GREEN
-local YELLOW = colors.codes.YELLOW
-local BLACK = colors.codes.BLACK
-
-local ID_CATCHER_PATTERN = "[.]*0x0*([%d%w]+)"
-
 local function process_pretty_values(
     value: any,
+    -- seen_tables' keys are tables since they get uniquely hashed, value is stringified path
+    -- seen_tables' values should be string? (optional) but that causes inference to fail to complete
     seen_tables: { [{ [any]: any }]: string }?,
     depth: number?,
-    parent_key: string?
+    current_table_path: { any }? -- used to put table paths in seen_tables
 ): string
     seen_tables = seen_tables or {}
     local depth = depth or 0
+    local current_table_path: { any } = current_table_path or {}
     local current_indent = string.rep("    ", depth)
     if type(value) == "table" then
         local value = value :: { [any]: any }
         local result = "{\n"
 
         if depth == 0 then
-            seen_tables[value] = "self" -- track top level cyclic tables
+            seen_tables[value] = BOLD_YELLOW .. "self" .. RESET -- track top level cyclic tables
         end
 
         -- pretty printed tables should be printed in numerical, then alphabetical order (if possible)
@@ -267,6 +363,7 @@ local function process_pretty_values(
         if #sorted_pairs == 0 then
             return "{}" -- special case empty tables
         end
+
         for _, pair in sorted_pairs do
             local key, val = pair.key, pair.val
             result ..= current_indent .. "    "
@@ -287,25 +384,26 @@ local function process_pretty_values(
             elseif key_type == "table" then
                 local seen_name = seen_tables[key]
                 if seen_name then
-                    result ..= "[" .. colors.bold.white(seen_name) .. "]"
+                    result ..= "[" .. seen_name .. "]"
                 elseif depth + 1 > 6 then
                     local tableid = string.match(tostring(key), ID_CATCHER_PATTERN)
                     result ..= "[" .. colors.cyan(`table<0x{tableid}>`) .. "]"
                 else
-                    result ..= "[" .. process_pretty_values(key, seen_tables, depth + 1) .. "]"
+                    result ..= "[" .. process_pretty_values(key, seen_tables, depth + 1, current_table_path) .. "]"
                 end
             else
-                result ..= `[{process_pretty_values(key, seen_tables, depth + 1)}]`
+                result ..= `[{process_pretty_values(key, seen_tables, depth + 1, current_table_path)}]`
             end
 
             result ..= " = "
+
             -- stringify values
             if typeof(val) == "table" then
                 local val = val :: { [any]: any }
-
                 local seen_name = seen_tables[val]
                 if seen_name then
-                    result ..= colors.codes.BOLD_YELLOW .. seen_name .. RESET
+                    result ..= seen_name
+                    -- result ..= colors.codes.BOLD_YELLOW .. seen_name .. RESET
                 elseif depth + 1 > 6 then
                     if next(val) == nil then -- table is empty
                         result ..= "{}"
@@ -313,80 +411,23 @@ local function process_pretty_values(
                         result ..= "{" .. colors.codes.BOLD_WHITE .. "..." .. RESET .. "}"
                     end
                 else
-                    seen_tables[val] = tostring(key)
-                    result ..= process_pretty_values(val, seen_tables, depth + 1)
+                    -- push key to current_table_path before recursion
+                    table.insert(current_table_path, key)
+                    seen_tables[val] = stringify_table_path(current_table_path) -- tostring(key)
+                    result ..= process_pretty_values(val, seen_tables, depth + 1, current_table_path)
+                    -- pop key from current_table_path after recursion
+                    table.remove(current_table_path, #current_table_path)
                 end
             else
-                result ..= process_pretty_values(val, seen_tables, depth + 1)
+                result ..= process_pretty_values(val, seen_tables, depth + 1, current_table_path)
             end
+            
             result ..= ",\n"
         end
         result ..= current_indent .. "}"
-        -- print(sorted_pairs)
         return result
-    elseif type(value) == "number" then
-        if not mlua.isint(value) and math.round(value) == value then
-            return BLUE .. tostring(value) .. ".0" .. RESET
-        else
-            return BLUE .. tostring(value) .. RESET
-        end
-    elseif type(value) == "string" then
-        return GREEN .. '"' .. value .. '"' .. RESET
-    elseif type(value) == "boolean" then
-        return YELLOW .. tostring(value) .. RESET
-    elseif type(value) == "vector" then
-        return `{RED}vector<{BOLD_BLUE}{value.x}{CYAN}, {BOLD_BLUE}{value.y}{CYAN}, {BOLD_BLUE}{value.z}{RESET}{RED}>{RESET}`
-    elseif type(value) == "function" then
-        local function_id = string.match(tostring(value), ID_CATCHER_PATTERN)
-        local last_five = string.sub(function_id, #function_id - 4, # function_id)
-        local first_part = string.sub(function_id, 1, #function_id - 5)
-        if function_id then
-            return RED .. "function<0x" .. first_part .. colors.bold.red(last_five) .. RESET .. RED .. ">" .. RESET
-        else
-            return RED .. "function" .. RESET
-        end
-    elseif type(value) == "buffer" then
-        local buffer_id = string.match(tostring(value), ID_CATCHER_PATTERN)
-        local last_five = string.sub(buffer_id, #buffer_id - 4, # buffer_id)
-        local first_part = string.sub(buffer_id, 1, #buffer_id - 5)
-        if buffer_id then
-            return MAGENTA .. "buffer<0x" .. first_part .. colors.bold.magenta(last_five) .. RESET .. MAGENTA .. ">" .. RESET
-        else
-            return MAGENTA .. "buffer" .. RESET
-        end
-    elseif mlua.iserror(value) then
-        local stringified_error = tostring(value)
-        local errsplit = string.split(stringified_error, "\n")
-        local errmsglist = {}
-        for _, m in errsplit do
-            if string.find(m, "stack traceback") then
-                break
-            else
-                table.insert(errmsglist, m)
-            end
-        end
-        return colors.codes.BOLD_RED .. "error" .. RESET .. RED .. "<" .. table.concat(errmsglist) .. ">" .. RESET
-    elseif type(value) == "thread" then
-        local thread_id = string.match(tostring(value), ID_CATCHER_PATTERN)
-        if thread_id then
-            return "corothread<" .. thread_id .. ">"
-        else
-            return "coroutinethread"
-        end
-    elseif type(value) == "userdata" then
-        local typeof_userdata = typeof(value)
-        if typeof_userdata ~= "userdata" then
-            return colors.bold.magenta(typeof_userdata)
-        else
-            local userdata_id = string.match(tostring(value), ID_CATCHER_PATTERN)
-            if userdata_id then
-                return MAGENTA .. "userdata<0x" .. userdata_id .. ">" .. RESET
-            else
-                return MAGENTA .. "userdata" .. RESET
-            end
-        end
     else
-        return tostring(value)
+        return stringify_simple_type(value)
     end
 end
 
