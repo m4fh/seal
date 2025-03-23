@@ -49,10 +49,13 @@ pub const BRIGHT_MAGENTA_BG: &str = "\x1b[105m";
 pub const BRIGHT_CYAN_BG: &str = "\x1b[106m";
 pub const BRIGHT_WHITE_BG: &str = "\x1b[107m";
 
+pub const BOLD: &str = "\x1b[1m";
+pub const DIM: &str = "\x1b[2m";
+
 type LuaValueResult = LuaResult<LuaValue>;
 
 fn colorize(luau: &Lua, text: String, color_code: &str) -> LuaValueResult {
-    let colored_text = format!("{}{}{}", color_code, text, RESET);
+    let colored_text = color_code.to_string() + &text + RESET;
     Ok(LuaValue::String(luau.create_string(&colored_text)?))
 }
 
@@ -88,7 +91,6 @@ fn colorize_white(luau: &Lua, text: String) -> LuaValueResult {
     colorize(luau, text, WHITE)
 }
 
-
 fn colorize_bold_black(luau: &Lua, text: String) -> LuaValueResult {
     colorize(luau, text, BOLD_BLACK)
 }
@@ -121,6 +123,14 @@ fn colorize_bold_white(luau: &Lua, text: String) -> LuaValueResult {
     colorize(luau, text, BOLD_WHITE)
 }
 
+fn style_bold(luau: &Lua, text: String) -> LuaValueResult {
+    colorize(luau, text, BOLD)
+}
+
+fn style_dim(luau: &Lua, text: String) -> LuaValueResult {
+    colorize(luau, text, DIM)
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     let bold_colors = TableBuilder::create(luau)?
         .with_function("black", colorize_bold_black)?
@@ -131,6 +141,11 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("magenta", colorize_bold_magenta)?
         .with_function("cyan", colorize_bold_cyan)?
         .with_function("white", colorize_bold_white)?
+        .build_readonly()?;
+
+    let styles = TableBuilder::create(luau)?
+        .with_function("bold", style_bold)?
+        .with_function("dim", style_dim)?
         .build_readonly()?;
 
     let codes = TableBuilder::create(luau)?
@@ -175,6 +190,8 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_value("BRIGHT_MAGENTA_BG", BRIGHT_MAGENTA_BG)?
         .with_value("BRIGHT_CYAN_BG", BRIGHT_CYAN_BG)?
         .with_value("BRIGHT_WHITE_BG", BRIGHT_WHITE_BG)?
+        .with_value("BOLD", BOLD)?
+        .with_value("DIM", DIM)?
         .build_readonly()?;
 
     TableBuilder::create(luau)?
@@ -187,6 +204,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("cyan", colorize_cyan)?
         .with_function("white", colorize_white)?
         .with_value("bold", bold_colors)?
+        .with_value("style", styles)?
         .with_value("codes", codes)?
         .build_readonly()
 }
