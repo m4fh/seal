@@ -10,18 +10,26 @@ pub mod pathlib;
 pub mod file_entry;
 pub mod directory_entry;
 
-pub fn ensure_utf8_path(path: &LuaString, function_name: &str) -> LuaResult<String> {
+pub fn validate_path(path: &LuaString, function_name: &str) -> LuaResult<String> {
     let Ok(path) = path.to_str() else {
         return wrap_err!("{}: provided path '{}' is not properly utf8-encoded", function_name, path.display());
     };
-    Ok(path.to_string())
+    let path = path.to_string();
+    if cfg!(target_os="linux") {
+        if !fs::exists(&path)? && fs::exists("/".to_string() + &path)? {
+            return wrap_err!("{}: provided path '{}' doesn't exist but an absolute path of it ('/{}') does; did you mean to prepend '/' to it?", function_name, &path, &path);
+        } else if !fs::exists(&path)? && path.starts_with("home") { // /home/user/ is ~ on linux
+            return wrap_err!("{}: path '{}' looks like an absolute path but doesn't start with '/', did you mean to provide an absolute path?", function_name, &path);
+        }
+    }
+    Ok(path)
 }
 
 /// fs.listdir(path: string, recursive: boolean?): { string }
 fn fs_listdir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let dir_path = match multivalue.pop_front() {
         Some(LuaValue::String(path)) => {
-            ensure_utf8_path(&path, "fs.listdir(path: string, recursive: boolean?)")?
+            validate_path(&path, "fs.listdir(path: string, recursive: boolean?)")?
         },
         Some(other) => {
             return wrap_err!("fs.listdir(path: string, recursive: boolean?) expected path to be a string, got: {:#?}", other);
@@ -37,7 +45,7 @@ fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let function_name = "fs.entries(directory: string)";
     let directory_path = match value {
         LuaValue::String(path) => {
-            ensure_utf8_path(&path, function_name)?
+            validate_path(&path, function_name)?
         },
         other => {
             return wrap_err!("{} expected directory to be a string, got: {:?}", function_name, other);
@@ -78,7 +86,7 @@ fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
 pub fn fs_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let file_path = match value {
         LuaValue::String(file_path) => {
-            ensure_utf8_path(&file_path, "fs.readfile(path: string)")?
+            validate_path(&file_path, "fs.readfile(path: string)")?
         },
         other => {
             return wrap_err!("fs.readfile(path: string) expected string, got {:#?}", other);
@@ -98,7 +106,7 @@ pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult
     let function_name_and_args = "fs.readbytes(path: string, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number)";
     let entry_path: String = match multivalue.pop_front() {
         Some(LuaValue::String(file_path)) => {
-            ensure_utf8_path(&file_path, function_name_and_args)?
+            validate_path(&file_path, function_name_and_args)?
         },
         Some(other) => 
             return wrap_err!("{} expected path to be a string, got: {:#?}", function_name_and_args, other),
@@ -115,7 +123,7 @@ pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult
 fn fs_readlines(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let file_path = match value {
         LuaValue::String(path) => {
-            ensure_utf8_path(&path, "fs.readlines(path: string)")?
+            validate_path(&path, "fs.readlines(path: string)")?
         },
         other => {
             return wrap_err!("fs.readlines(path: string): expected a file path, got: {:#?}", other);
@@ -128,7 +136,7 @@ fn fs_readlines(luau: &Lua, value: LuaValue) -> LuaValueResult {
 pub fn fs_writefile(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     let file_path = match multivalue.pop_front() {
         Some(LuaValue::String(path)) => {
-            ensure_utf8_path(&path, "fs.writefile(path: string, content: string | buffer)")?
+            validate_path(&path, "fs.writefile(path: string, content: string | buffer)")?
         },
         Some(other) => {
             return wrap_err!("fs.writefile(path: string, content: string | buffer) expected path to be a string, got: {:#?}", other);
@@ -156,7 +164,17 @@ pub fn fs_writefile(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResul
             Ok(())
         },
         Err(err) => {
-            entry::wrap_io_read_errors_empty(err, "fs.writefile", &file_path)
+            match err.kind() {
+                io::ErrorKind::NotFound => {
+                    // if we dont special-case this, it results in an "fs.writefile: File not found {newfilepath}"
+                    // error that's like... duh, of course it's not found.. i'm trying to make the file there??
+                    // turns out we get NotFounds on fs::write if any of the parent directories don't exist
+                    wrap_err!("fs.writefile: path to '{}' doesn't exist, are all directories present and does the path start with '/', './', or '../'?")
+                },
+                _ => {
+                    entry::wrap_io_read_errors_empty(err, "fs.writefile", &file_path)
+                }
+            }
         }
     }
 }
@@ -166,7 +184,7 @@ pub fn fs_writefile(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResul
 pub fn fs_removefile(_luau: &Lua, value: LuaValue) -> LuaEmptyResult {
     let victim_path = match value {
         LuaValue::String(path) => {
-            ensure_utf8_path(&path, "fs.removefile(path: string)")?
+            validate_path(&path, "fs.removefile(path: string)")?
         },
         other => {
             return wrap_err!("fs.removefile(path: string) expected path to be a string, got: {:?}", other);
@@ -193,7 +211,7 @@ pub fn fs_removefile(_luau: &Lua, value: LuaValue) -> LuaEmptyResult {
 pub fn fs_move(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     let from_path = match multivalue.pop_front() {
         Some(LuaValue::String(from)) => {
-            ensure_utf8_path(&from, "fs.move(from: string, to: string)")?
+            validate_path(&from, "fs.move(from: string, to: string)")?
         },
         Some(other) => {
             return wrap_err!("fs.move(from: string, to: string) expected 'from' to be a string, got: {:?}", other);
@@ -204,7 +222,7 @@ pub fn fs_move(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     };
     let to_path = match multivalue.pop_front() {
         Some(LuaValue::String(to)) => {
-            ensure_utf8_path(&to, "fs.move(from: string, to: string)")?
+            validate_path(&to, "fs.move(from: string, to: string)")?
         },
         Some(other) => {
             return wrap_err!("fs.move(from: string, to: string) expected 'to' to be a string, got: {:?}", other);
@@ -239,7 +257,7 @@ pub fn fs_removetree(_luau: &Lua, value: LuaValue) -> LuaEmptyResult {
     let function_name = "fs.removetree(path: string)";
     let victim_path = match value {
         LuaValue::String(path) => {
-            ensure_utf8_path(&path, function_name)?
+            validate_path(&path, function_name)?
         },
         other => {
             return wrap_err!("fs.removetree(path: string) expected path to be a string, got: {:?}", other);
@@ -268,7 +286,7 @@ fn get_search_path(mut multivalue: LuaMultiValue, function_name: &str) -> LuaRes
     match multivalue.pop_front() {
         Some(LuaValue::Table(find_result)) => {
             let search_path: LuaString = find_result.raw_get("path")?;
-            ensure_utf8_path(&search_path, function_name)
+            validate_path(&search_path, function_name)
         },
         Some(other) => {
             wrap_err!("FindResult:{}(): expected self to be a FindResult (table), got: {:?}", function_name, other)
@@ -284,7 +302,7 @@ pub fn fs_find(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let function_name = "fs.find(path: string, follow_symlinks: boolean?)";
     let search_path = match multivalue.pop_front() {
         Some(LuaValue::String(path)) => {
-            ensure_utf8_path(&path, function_name)?
+            validate_path(&path, function_name)?
         },
         Some(other) => {
             return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
