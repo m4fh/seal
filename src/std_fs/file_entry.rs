@@ -11,7 +11,7 @@ use std::io::{BufRead, BufReader, Read, Seek, Write};
 use std::os::unix::fs::FileExt;
 
 fn file_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let file_path = get_path_from_entry(value, "FileEntry:read()")?;
+    let file_path = get_path_from_entry(&value, "FileEntry:read()")?;
     let bytes = match fs::read(&file_path) {
         Ok(bytes) => bytes,
         Err(err) => {
@@ -146,90 +146,6 @@ pub fn read_file_into_buffer(_luau: &Lua, entry_path: &str, mut multivalue: LuaM
     Ok(LuaValue::Buffer(target_buffer))
 }
 
-// helper function for fs.readbytes and Entry:readbytes
-pub fn read_entry_path_into_buffer(luau: &Lua, entry_path: String, mut multivalue: LuaMultiValue, function_name: &str) -> LuaValueResult {
-    let file_size = {
-        match fs::metadata(&entry_path) {
-            Ok(metadata) => metadata.len() as i32,
-            Err(err) => {
-                return entry::wrap_io_read_errors(err, function_name, &entry_path);
-            }
-        }
-    };
-    let start = match multivalue.pop_front() {
-        Some(LuaValue::Integer(n)) => {
-            if n >= 0 {
-                Some(n)
-            } else if n > file_size {
-                return wrap_err!("{}: start byte s ({}) outside file bounds ({})", function_name, n, file_size);
-            } else {
-                return wrap_err!("{}: start byte s must be >= 0!!", function_name);
-            }
-        },
-        Some(other) => return wrap_err!("{}(file_path, s: number?, f: number?) expected s to be a number, got: {:#?}", function_name, other),
-        None => None,
-    };
-    let finish = match multivalue.pop_front() {
-        Some(LuaValue::Integer(n)) => {
-            if n > 0 { 
-                Some(n)
-            } else if n > file_size {
-                return wrap_err!("{}: final byte f ({}) outside file bounds ({})", function_name, n, file_size);
-            } else {
-                return wrap_err!("{}: final byte f must be positive!!", function_name);
-            }
-        },
-        Some(other) => return wrap_err!("{}(file_path, s: number?, f: number?) expected f to be a number, got: {:#?}", function_name, other),
-        None => {
-            if start.is_some() {
-                return wrap_err!("{}(file_path, s: number, f: number): missing final byte f; if s is provided then f must also be provided", function_name);
-            } else {
-                None
-            }
-        },
-    };
-
-    if let Some(start) = start {
-        // read specific section of file
-        let finish = finish.unwrap();
-
-        let mut file = match fs::File::open(&entry_path) {
-            Ok(f) => f,
-            Err(err) => {
-                return wrap_err!("{}(file_path, s: number?, f: number?) error reading path: {}", function_name, err);
-            }
-        };
-    
-        // Calculate the number of bytes to read
-        let num_bytes = (finish - start) as usize;
-        let mut buffer = vec![0; num_bytes];
-    
-        // Seek to the start position
-        if let Err(err) = file.seek(std::io::SeekFrom::Start(start as u64)) {
-            return wrap_err!("{}: error seeking to start position: {}", function_name, err);
-        }
-    
-        // Read the requested bytes
-        match file.read_exact(&mut buffer) {
-            Ok(_) => {
-                let buffy = luau.create_buffer(&buffer)?;
-                Ok(LuaValue::Buffer(buffy))
-            },
-            Err(err) => wrap_err!("{}: error reading bytes: {}", function_name, err),
-        }
-    } else {
-        // read the whole thing
-        let bytes = match fs::read(&entry_path) {
-            Ok(bytes) => bytes,
-            Err(err) => {
-                return wrap_err!("{}: failed to read file with error: {}", function_name, err);
-            }
-        };
-        let buffy = luau.create_buffer(bytes)?;
-        Ok(LuaValue::Buffer(buffy))
-    }
-}
-
 fn file_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     let entry = match multivalue.pop_front() {
         Some(value) => value,
@@ -237,7 +153,7 @@ fn file_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
             return wrap_err!("FileEntry:readbytes() incorrectly called with zero arguments");
         }
     };
-    let entry_path = get_path_from_entry(entry, "FileEntry:readbytes()")?;
+    let entry_path = get_path_from_entry(&entry, "FileEntry:readbytes()")?;
 
     // read_entry_path_into_buffer(luau, entry_path, multivalue, "FileEntry:readbytes")
     read_file_into_buffer(luau,&entry_path, multivalue, "FileEntry:readbytes(target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number)")?;
@@ -252,7 +168,7 @@ fn file_append(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
         }
     };
 
-    let entry_path = get_path_from_entry(entry, "FileEntry:append(content: string | buffer)")?;
+    let entry_path = get_path_from_entry(&entry, "FileEntry:append(content: string | buffer)")?;
 
     let mut file = match OpenOptions::new()
         .append(true)
@@ -334,12 +250,12 @@ pub fn readlines(luau: &Lua, entry_path: &str, function_name: &str) -> LuaValueR
 }
 
 fn file_readlines(luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let entry_path = get_path_from_entry(value, "FileEntry:readlines()")?;
+    let entry_path = get_path_from_entry(&value, "FileEntry:readlines()")?;
     readlines(luau, &entry_path, "FileEntry:readlines()")
 }
 
 fn file_filesize(_luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let file_path = get_path_from_entry(value, "FileEntry:size()")?;
+    let file_path = get_path_from_entry(&value, "FileEntry:size()")?;
     let metadata = match fs::metadata(&file_path) {
         Ok(metadata) => metadata,
         Err(err) => {
@@ -350,7 +266,7 @@ fn file_filesize(_luau: &Lua, value: LuaValue) -> LuaValueResult {
 }
 
 fn file_is_valid_utf8(_luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let entry_path = get_path_from_entry(value, "FileEntry:is_valid_utf8()")?;
+    let entry_path = get_path_from_entry(&value, "FileEntry:is_valid_utf8()")?;
     let mut file = match fs::File::open(&entry_path) {
         Ok(file) => file,
         Err(err) => {
@@ -370,8 +286,8 @@ fn file_is_valid_utf8(_luau: &Lua, value: LuaValue) -> LuaValueResult {
     }
 }
 
-pub fn create(luau: &Lua, path: String) -> LuaResult<LuaTable> {
-    let original_path = path.clone();
+pub fn create(luau: &Lua, path: &str) -> LuaResult<LuaTable> {
+    let original_path = path;
     let path = PathBuf::from(path);
     if !path.exists() {
         return wrap_err!("File not found: '{}'", path.display());

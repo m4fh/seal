@@ -1,12 +1,6 @@
-use entry::wrap_io_read_errors;
+use entry::{wrap_io_read_errors, wrap_io_read_errors_empty};
 use mlua::prelude::*;
-use std::cell::RefCell;
-use std::io::{BufRead, BufReader, Read, Seek};
-use std::{fs::{self, OpenOptions}, io};
-use std::path::{Path, PathBuf};
-use io::Write;
-
-use regex::Regex;
+use std::{fs, io};
 use crate::require::ok_table;
 use crate::{table_helpers::TableBuilder, LuaValueResult};
 use crate::{std_io_colors as colors, wrap_err, LuaEmptyResult};
@@ -16,10 +10,19 @@ pub mod pathlib;
 pub mod file_entry;
 pub mod directory_entry;
 
+pub fn ensure_utf8_path(path: &LuaString, function_name: &str) -> LuaResult<String> {
+    let Ok(path) = path.to_str() else {
+        return wrap_err!("{}: provided path '{}' is not properly utf8-encoded", function_name, path.display());
+    };
+    Ok(path.to_string())
+}
+
 /// fs.listdir(path: string, recursive: boolean?): { string }
 fn fs_listdir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let dir_path = match multivalue.pop_front() {
-        Some(LuaValue::String(path)) => path.to_string_lossy(),
+        Some(LuaValue::String(path)) => {
+            ensure_utf8_path(&path, "fs.listdir(path: string, recursive: boolean?)")?
+        },
         Some(other) => {
             return wrap_err!("fs.listdir(path: string, recursive: boolean?) expected path to be a string, got: {:#?}", other);
         },
@@ -30,67 +33,61 @@ fn fs_listdir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     directory_entry::listdir(luau, dir_path, multivalue, "fs.listdir(path: string, recursive: boolean?)")
 }
 
-/// iterate over the lines of a file. you can use this within a for loop
-/// or put the function this returns in a local and call it repeatedly ala `local nextline = fs.readlines(filepath); local i, line = nextline()`
-fn fs_readlines(luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let file_path = match value {
-        LuaValue::String(path) => path.to_string_lossy(),
+fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let function_name = "fs.entries(directory: string)";
+    let directory_path = match value {
+        LuaValue::String(path) => {
+            ensure_utf8_path(&path, function_name)?
+        },
         other => {
-            return wrap_err!("fs.readlines(path: string): expected a file path, got: {:#?}", other);
+            return wrap_err!("{} expected directory to be a string, got: {:?}", function_name, other);
         }
     };
-    file_entry::readlines(luau, &file_path, "fs.readlines(path: string)")
+    let metadata = match fs::metadata(&directory_path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            return wrap_io_read_errors(err, function_name, &directory_path);
+        }
+    };
+    if !metadata.is_dir() {
+        return wrap_err!("{} expected '{}' to be a directory, got file instead", function_name, directory_path);
+    }
+
+    let mut entry_vec: Vec<(String, LuaValue)> = Vec::new();
+
+    for current_entry in fs::read_dir(&directory_path)? {
+        let current_entry = current_entry?;
+        let entry_path = current_entry.path().to_string_lossy().to_string();
+        // entry::create creates either a FileEntry or DirectoryEntry as needed
+        let entry_table = entry::create(luau, &entry_path, function_name)?;
+        entry_vec.push((entry_path, entry_table));
+    }
+
+    ok_table(TableBuilder::create(luau)?
+        .with_values(entry_vec)?
+        .build_readonly()
+    )
 }
 
-// fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
-//     let directory_path = match value {
-//         LuaValue::String(directory_path) => directory_path.to_string_lossy(),
-//         other => {
-//             return wrap_err!("fs.entries(directory_path: string) expected directory_path to be string, got: {:#?}", other);
-//         }
-//     };
-
-//     let metadata = match fs::metadata(&directory_path) {
-//         Ok(metadata) => metadata,
-//         Err(err) => {
-//             return wrap_err!("fs.entries: error reading directory_path's metadata: {}", err);
-//         }
-//     };
-
-//     if metadata.is_dir() {
-//         let mut entry_vec: Vec<(String, LuaValue)> = Vec::new();
-//         for entry in fs::read_dir(directory_path)? {
-//             let entry = entry?;
-//             let entry_path = entry.path()
-//                 .to_str()
-//                 .unwrap()
-//                 .to_string();
-//             entry_vec.push((entry_path.to_owned(), LuaValue::Table(
-//                 create_entry_table(luau, &entry_path)?
-//             )));
-            
-//         };
-//         Ok(LuaValue::Table(
-//             TableBuilder::create(luau)?
-//                 .with_values(entry_vec)?
-//                 .build_readonly()?
-//         ))
-//     } else {
-//         wrap_err!("fs.entries: expected directory, but path ({}) is actually a file", directory_path)
-//     }
-// }
-
+/// `fs.readfile(path: string): string`
+/// 
+/// note that we allow reading invalid utf8 files instead of failing (requiring fs.readbytes) 
+/// or replacing with utf8 replacement character
+/// 
+/// this is because Luau allows strings to be of arbitrary encoding unlike Rust, where they have to be utf8 
 pub fn fs_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let file_path = match value {
-        LuaValue::String(file_path) => file_path.to_string_lossy(),
+        LuaValue::String(file_path) => {
+            ensure_utf8_path(&file_path, "fs.readfile(path: string)")?
+        },
         other => {
-            return wrap_err!("fs.readfile expected string, got {:#?}", other);
+            return wrap_err!("fs.readfile(path: string) expected string, got {:#?}", other);
         }
     };
     let bytes = match fs::read(&file_path) {
         Ok(bytes) => bytes,
         Err(err) => {
-            return wrap_io_read_errors(err, "fs.readfile", &file_path);
+            return wrap_io_read_errors(err, "fs.readfile(path: string)", &file_path);
         }
     };
     Ok(LuaValue::String(luau.create_string(bytes)?))
@@ -100,23 +97,38 @@ pub fn fs_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
 pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     let function_name_and_args = "fs.readbytes(path: string, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number)";
     let entry_path: String = match multivalue.pop_front() {
-        Some(LuaValue::String(file_path)) => file_path.to_string_lossy(),
+        Some(LuaValue::String(file_path)) => {
+            ensure_utf8_path(&file_path, function_name_and_args)?
+        },
         Some(other) => 
             return wrap_err!("{} expected path to be a string, got: {:#?}", function_name_and_args, other),
         None => {
             return wrap_err!("{} incorrectly called with zero arguments", function_name_and_args);
         }
     };
-    // file_entry::read_entry_path_into_buffer(luau, entry_path, multivalue, "fs.readbytes")
     file_entry::read_file_into_buffer(luau, &entry_path, multivalue, function_name_and_args)?;
     Ok(())
+}
+
+/// iterate over the lines of a file. you can use this within a for loop
+/// or put the function this returns in a local and call it repeatedly ala `local nextline = fs.readlines(filepath); local i, line = nextline()`
+fn fs_readlines(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let file_path = match value {
+        LuaValue::String(path) => {
+            ensure_utf8_path(&path, "fs.readlines(path: string)")?
+        },
+        other => {
+            return wrap_err!("fs.readlines(path: string): expected a file path, got: {:#?}", other);
+        }
+    };
+    file_entry::readlines(luau, &file_path, "fs.readlines(path: string)")
 }
 
 // fs.writefile(path: string, content: string | buffer): ()
 pub fn fs_writefile(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     let file_path = match multivalue.pop_front() {
         Some(LuaValue::String(path)) => {
-            path.to_string_lossy()
+            ensure_utf8_path(&path, "fs.writefile(path: string, content: string | buffer)")?
         },
         Some(other) => {
             return wrap_err!("fs.writefile(path: string, content: string | buffer) expected path to be a string, got: {:#?}", other);
@@ -149,308 +161,105 @@ pub fn fs_writefile(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResul
     }
 }
 
-// fn create_entry_table(luau: &Lua, entry_path: &str) -> LuaResult<LuaTable> {
-//     let path = PathBuf::from(entry_path);
-//     let base_name = {
-//         match path.file_name() {
-//             Some(name) => {
-//                 let name = name.to_string_lossy().to_string();
-//                 LuaValue::String(luau.create_string(&name)?)
-//             },
-//             None => LuaNil
-//         }
-//     };
-//     let grab_file_ext_re = Regex::new(r"\.([a-zA-Z0-9]+)$").unwrap();
-//     let metadata = fs::metadata(entry_path)?;
-//     if metadata.is_dir() {
-//         TableBuilder::create(luau)?
-//             .with_value("name", base_name)?
-//             .with_value("type", "Directory")?
-//             .with_value("path", entry_path)?
-//             .with_function("entries", {
-//                 let entry_path = entry_path.to_string();
-//                 let entry_path_but_in_luau = entry_path.into_lua(luau)?;
-//                 move | luau, _s: LuaMultiValue | {
-//                     fs_entries(luau, entry_path_but_in_luau.to_owned())
-//                 }
-//             })?
-//             .with_function("list", {
-//                 let entry_path = entry_path.to_string();
-//                 move | luau, _s: LuaMultiValue | {
-//                     fs_listdir(luau, entry_path.clone())
-//                 }
-//             })?
-//             .with_function("find", {
-//                 let entry_path = entry_path.to_string();
-//                 move | luau, mut multivalue: LuaMultiValue | {
-//                     let _self = multivalue.pop_front();
-//                     let find_options = multivalue.pop_front().unwrap();
-//                     match find_options {
-//                         LuaValue::String(find_path) => {
-//                             let new_path = format!("{entry_path}/{}", find_path.to_str()?);
-//                             Ok(fs_find(luau, new_path.into_lua(luau)?))
-//                         }, 
-//                         LuaValue::Table(find_table) => {
-//                             if let LuaValue::String(file_path) = find_table.get("file")? {
-//                                 let new_path = format!("{entry_path}/{}", file_path.to_str()?);
-//                                 find_table.set("file", new_path)?;
-//                             }
-//                             Ok(fs_find(luau, LuaValue::Table(find_table)))
-//                         },
-//                         other => {
-//                             wrap_err!("DirectoryEntry:find expected string or FindConfig table, got: {:?}", other)
-//                         }
-//                     }
-//                     // fs_listdir(luau, entry_path.clone())
-//                 }
-//             })?
-//             .with_function("remove", {
-//                 let entry_path = entry_path.to_string();
-//                 move | _luau, _s: LuaMultiValue | {
-//                     Ok(fs::remove_dir_all(entry_path.clone())?)
-//                 }
-//             })?
-//             .with_function("create", {
-//                 let entry_path = entry_path.to_string();
-//                 move | luau, mut multivalue: LuaMultiValue | {
-//                     let _entry = multivalue.pop_front();
-//                     let value = multivalue.pop_front().unwrap();
-//                     let prepended_entry = match value {
-//                         LuaValue::Table(v) => {
-//                             if let LuaValue::String(new_path) = v.get("directory")? {
-//                                 let new_path = new_path.to_str()?.to_string();
-//                                 v.set("directory", format!("{entry_path}/{new_path}"))?;
-//                                 Ok(LuaValue::Table(v))
-//                             } else if let LuaValue::String(new_path) = v.get("file")? {
-//                                 let new_path = new_path.to_str()?.to_string();
-//                                 v.set("file",format!("{entry_path}/{new_path}"))?;
-//                                 Ok(LuaValue::Table(v))
-//                             } else if let LuaValue::Table(file_info) = v.get("file")? {
-//                                 if let LuaValue::String(file_name) = file_info.get("name")? {
-//                                     let file_name = file_name.to_str()?.to_string();
-//                                     let new_path = format!("{entry_path}/{file_name}");
-//                                     file_info.set("name", new_path)?;
-//                                 };
-//                                 Ok(LuaValue::Table(v))
-//                             } else {
-//                                 // println!("{:#?}", v);
-//                                 todo!("tree creation not yet implemented")
-//                             }
-//                         },
-//                         other => wrap_err!("DirectoryEntry:create for {} expected to be called with a table containing key 'dictionary' or key 'string', got {:?}", &entry_path, other)
-//                     };
-//                     fs_create(luau, prepended_entry?)
-//                 }
-//             })?
-//             .build_readonly()
-//     } else {
-//         let extension = {
-//             if let Some(captures) = grab_file_ext_re.captures(entry_path) {
-//                 String::from(&captures[1])
-//             } else {
-//                 String::from("")
-//             }
-//         };
-
-//         TableBuilder::create(luau)?
-//             .with_value("name", base_name)?
-//             .with_value("type", "File")?
-//             .with_value("size", metadata.len())?
-//             .with_value("path", entry_path)?
-//             .with_value("extension", extension)?
-//             .with_function("read", {
-//                 let entry_path = entry_path.to_string();
-//                 move | _luau, _s: LuaMultiValue | {
-//                     Ok(fs::read_to_string(entry_path.clone())?)
-//                 }
-//             })?
-//             .with_function("readbytes", {
-//                 let entry_path = entry_path.to_string();
-//                 move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-//                     let _handle = match multivalue.pop_front() {
-//                         Some(value) => value,
-//                         None => {
-//                             return wrap_err!("FileEntry:readbytes(s, f) expected to be called with self.");
-//                         }
-//                     };
-//                     let entry_path_luau = luau.create_string(&entry_path)?;
-//                     multivalue.push_front(LuaValue::String(entry_path_luau));
-//                     match fs_readbytes(luau, multivalue) {
-//                         Ok(v) => Ok(v),
-//                         Err(err) => {
-//                             wrap_err!(err.to_string().replace("fs.readbytes(file_path,", "FileEntry:readbytes("))
-//                         }
-//                     }
-//                 }   
-//             })?
-//             .with_function("readlines",{
-//                 let path = path.clone();
-//                 move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
-//                     let file = match fs::File::open(&path) {
-//                         Ok(file) => file,
-//                         Err(err) => {
-//                             return wrap_err!("FileEntry:readlines(): error opening file: {}", err);
-//                         }
-//                     };
-
-//                     let reader = BufReader::new(file);
-//                     let reader_cell = RefCell::new(reader);
-
-//                     let current_line: i32 = 0;
-//                     let current_line_cell = RefCell::new(current_line);
-
-//                     Ok(LuaValue::Function(luau.create_function({
-//                         move | luau: &Lua, _value: LuaValue | -> LuaResult<LuaMultiValue> {
-//                             let mut reader_cell = reader_cell.borrow_mut();
-//                             let reader = reader_cell.by_ref();
-//                             let mut new_line = String::from("");
-//                             match reader.read_line(&mut new_line) {
-//                                 Ok(0) => {
-//                                     let multi_vec = vec![LuaNil];
-//                                     Ok(LuaMultiValue::from_vec(multi_vec))
-//                                 },
-//                                 Ok(_other) => {
-//                                     let mut current_line = current_line_cell.borrow_mut();
-//                                     *current_line += 1;
-//                                     let luau_line = luau.create_string(new_line.trim_end())?;
-//                                     let multi_vec = vec![LuaValue::Integer(*current_line), LuaValue::String(luau_line)];
-//                                     Ok(LuaMultiValue::from_vec(multi_vec))
-//                                 },
-//                                 Err(err) => {
-//                                     wrap_err!("FileEntry:readlines(): unable to read line: {}", err)
-//                                 }
-//                             }
-//                         }
-//                     })?))
-//                 }
-//             })?
-//             .with_function("remove", {
-//                 let entry_path = entry_path.to_string();
-//                 move | _luau, _s: LuaMultiValue | {
-//                     Ok(fs::remove_file(entry_path.clone())?)
-//                 }
-//             })?
-//             .with_function("append", {
-//                 let path = path.clone();
-//                 move | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-//                     let content = match multivalue.pop_back() {
-//                         Some(content) => content,
-//                         None => {
-//                             return wrap_err!("FileEntry:append() expected content to append (string or buffer), got nothing");
-//                         }
-//                     };
-
-//                     let mut file = match OpenOptions::new()
-//                         .append(true)
-//                         .open(&path) {
-//                             Ok(file) => file,
-//                             Err(err) => {
-//                                 return wrap_err!("FileEntry:append() error opening up file: {}", err);
-//                             }
-//                         };
-//                     let content = match content {
-//                         LuaValue::String(content) => {
-//                             let content = content.to_string_lossy();
-//                             content.as_bytes().to_owned()
-//                         },
-//                         LuaValue::Buffer(content) => content.to_vec(),
-//                         other => {
-//                             return wrap_err!("FileEntry:append(content) expected content to be a string or buffer, got: {:#?}", other);
-//                         }
-//                     };
-
-//                     match file.write_all(&content) {
-//                         Ok(_) => Ok(LuaNil),
-//                         Err(err) => {
-//                             wrap_err!("FileEntry:append: error writing to file: {}", err)
-//                         }
-//                     }
-//                 }
-//             })?
-//             .build_readonly()
-//     }
-// }
-
-pub fn fs_move(_luau: &Lua, from_to: LuaMultiValue) -> LuaValueResult {
-    let mut multivalue = from_to.clone();
-    let from = multivalue.pop_front().unwrap_or(LuaNil);
-    let from_path = {
-        match from {
-            LuaValue::String(from) => from.to_str()?.to_string(),
-            other => {
-                return wrap_err!("fs.move: 'from' argument expected to be string path, got {:?}", other);
-            }
+/// fs.removefile(path: string): ()
+/// cannot remove directories
+pub fn fs_removefile(_luau: &Lua, value: LuaValue) -> LuaEmptyResult {
+    let victim_path = match value {
+        LuaValue::String(path) => {
+            ensure_utf8_path(&path, "fs.removefile(path: string)")?
+        },
+        other => {
+            return wrap_err!("fs.removefile(path: string) expected path to be a string, got: {:?}", other);
         }
     };
-    let to = multivalue.pop_front().unwrap_or(LuaNil);
-    let to_path = {
-        match to {
-            LuaValue::String(to) => to.to_str()?.to_string(),
-            other => {
-                return wrap_err!("fs.move: 'to' argument expected to be string path, got {:?}", other)
-            }
+    let metadata = match fs::metadata(&victim_path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            return wrap_io_read_errors_empty(err, "fs.removefile(path: string)", &victim_path);
         }
     };
-    std::fs::rename(from_path, to_path)?;
-    Ok(LuaNil)
-}
-
-fn is_dir_empty(path: &str) -> bool {
-    match fs::read_dir(path) {
-        Ok(mut entries) => entries.next().is_none(),
-        Err(_) => {
-            panic!("Error reading path {}", &path);
-        }, 
+    if metadata.is_file() {
+        match fs::remove_file(&victim_path) {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                wrap_io_read_errors_empty(err, "fs.removefile(path: string)", &victim_path)
+            }
+        }
+    } else { // it can't be a symlink as fs::metadata follows symlinks
+        wrap_err!("fs.removefile(path: string): cannot remove file; path at '{}' is actually a directory!", victim_path)
     }
 }
 
-pub fn fs_remove(_luau: &Lua, remove_options: LuaValue) -> LuaValueResult {
-    match remove_options {
-        LuaValue::Table(options) => {
-            if let LuaValue::String(path) = options.get("file")? {
-                let path = path.to_str()?.to_string();
-                fs::remove_file(&path)?;
-                Ok(LuaNil)
-            } else if let LuaValue::String(directory_path) = options.get("directory")? {
-                let directory_path = directory_path.to_str()?.to_string();
-                match options.get("force")? {
-                    LuaValue::Boolean(force) => {
-                        if force {
-                            if directory_path.starts_with("/") {
-                                match options.get("remove_absolute_path")? {
-                                    LuaValue::Boolean(safety_override) => {
-                                        if safety_override {
-                                            fs::remove_dir_all(&directory_path)?;
-                                        } else {
-                                            return wrap_err!("fs.remove: attempted to remove a directory by absolute path.\nThis could be a critical directory, so please be careful. Directory: {}. If you're absolutely sure your code cannot unintentionally destroy a critical directory like /, /root, /boot, or on windows, C:\\System32 or something, then feel free to set RemoveDirectoryOptions.remove_absolute_path to true.", &directory_path);
-                                        }
-                                    }, 
-                                    other => {
-                                        return wrap_err!("fs.remove: remove_absolute_path expected to be boolean (default false), you gave me a {:?}, why?", other);
-                                    }
-                                }
-                            } else {
-                                fs::remove_dir_all(&directory_path)?;
-                            }
-                        } else if is_dir_empty(&directory_path) {
-                            fs::remove_dir(&directory_path)?;
-                        }
-                    },
-                    LuaValue::Nil => {
-                        fs::remove_dir_all(&directory_path)?;
-                    },
-                    other => {
-                        return wrap_err!("fs.remove expected RemoveDirectoryOptions.force to be string? (string or the default, nil), got: {:?}", other);
-                    }
-                }
-                Ok(LuaNil)
-            } else {
-                wrap_err!("fs.remove received invalid arguments; expected RemoveOptions.file or RemoveOptions.directory.")
-            }
+pub fn fs_move(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+    let from_path = match multivalue.pop_front() {
+        Some(LuaValue::String(from)) => {
+            ensure_utf8_path(&from, "fs.move(from: string, to: string)")?
+        },
+        Some(other) => {
+            return wrap_err!("fs.move(from: string, to: string) expected 'from' to be a string, got: {:?}", other);
+        },
+        None => {
+            return wrap_err!("fs.move(from: string, to: string) expected 'from', got nothing");
+        }
+    };
+    let to_path = match multivalue.pop_front() {
+        Some(LuaValue::String(to)) => {
+            ensure_utf8_path(&to, "fs.move(from: string, to: string)")?
+        },
+        Some(other) => {
+            return wrap_err!("fs.move(from: string, to: string) expected 'to' to be a string, got: {:?}", other);
+        },
+        None => {
+            return wrap_err!("fs.move(from: string, to: string) expected 'to', got nothing");
+        }
+    };
+    match fs::rename(&from_path, &to_path) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            wrap_err!("fs.move: unable to move '{}' -> '{}' due to err: {}", from_path, to_path, err)
+        }
+    }
+}
+
+/// fs.readtree(path: string): DirectoryTree
+/// not called readdir because it's uglier + we want dir/tree stuff to autocomplete after file
+/// so we want fs.readfile to autocomplete first and i'm assuming it's alphabetical
+fn _fs_readtree(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
+    todo!()
+}
+
+/// fs.writetree(path: string, tree: DirectoryTree): ()
+fn _fs_writetree(_luau: &Lua, _value: LuaValue) -> LuaEmptyResult {
+    todo!()
+}
+
+/// fs.removetree(path: string)
+/// does NOT follow symlinks
+pub fn fs_removetree(_luau: &Lua, value: LuaValue) -> LuaEmptyResult {
+    let function_name = "fs.removetree(path: string)";
+    let victim_path = match value {
+        LuaValue::String(path) => {
+            ensure_utf8_path(&path, function_name)?
         },
         other => {
-            wrap_err!("fs.remove expected RemoveOptions, got: {}", other.to_string()?)
+            return wrap_err!("fs.removetree(path: string) expected path to be a string, got: {:?}", other);
         }
+    };
+    let metadata = match fs::metadata(&victim_path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            return wrap_io_read_errors_empty(err, function_name, &victim_path);
+        }
+    };
+    if metadata.is_dir() {
+        if let Err(err) = fs::remove_dir_all(&victim_path) {
+            let err_message = "fs.removetree was unable to remove some, or all of the directory tree requested:\n";
+            wrap_err!("{}    {}", err_message, err)
+        } else {
+            Ok(())
+        }
+    } else {
+        wrap_err!("fs.removetree(path: string) expected to find a directory at path '{}' but instead found a file", victim_path)
     }
 }
 
@@ -660,7 +469,7 @@ fn fs_file_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
             return wrap_err!("fs.file.from(path) expected path to be a string, got: {:#?}", other);
         }
     };
-    ok_table(file_entry::create(luau, path))
+    ok_table(file_entry::create(luau, &path))
 }
 
 pub fn create_filelib(luau: &Lua) -> LuaResult<LuaTable> {
@@ -676,7 +485,7 @@ fn fs_dir_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
             return wrap_err!("fs.dir.from(path) expected path to be a string, got: {:#?}", other);
         }
     };
-    ok_table(directory_entry::create(luau, path))
+    ok_table(directory_entry::create(luau, &path))
 }
 
 pub fn create_dirlib(luau: &Lua) -> LuaResult<LuaTable> {
@@ -692,9 +501,10 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("readlines", fs_readlines)?
         .with_function("writefile", fs_writefile)?
         .with_function("move", fs_move)?
-        .with_function("remove", fs_remove)?
+        .with_function("removefile", fs_removefile) ?
         .with_function("listdir", fs_listdir)?
-        // .with_function("entries", fs_entries)?
+        .with_function("removetree", fs_removetree)?
+        .with_function("entries", fs_entries)?
         // .with_function("find", fs_find)?
         // .with_function("file", fs_find_file)?
         // .with_function("dir", fs_find_dir)?

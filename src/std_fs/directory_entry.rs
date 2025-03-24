@@ -68,7 +68,7 @@ fn list_dir_recursive(path: &str, list: &mut Vec<String>) -> LuaEmptyResult {
 
 fn dir_list(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let entry_path = match multivalue.pop_front() {
-        Some(entry) => get_path_from_entry(entry, "DirectoryEntry:list()")?,
+        Some(entry) => get_path_from_entry(&entry, "DirectoryEntry:list()")?,
         None => {
             return wrap_err!("DirectoryEntry:list() expected to be called with self");
         }
@@ -76,8 +76,8 @@ fn dir_list(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     listdir(luau, entry_path, multivalue, "DirectoryEntry:list(recursive: boolean?)")
 }
 
-pub fn create(luau: &Lua, path: String) -> LuaResult<LuaTable> {
-    let original_path = path.clone();
+pub fn create(luau: &Lua, path: &str) -> LuaResult<LuaTable> {
+    let original_path = path;
     let path = PathBuf::from(path);
     if !path.exists() {
         return wrap_err!("Directory not found: '{}'", path.display());

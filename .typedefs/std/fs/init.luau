@@ -22,17 +22,21 @@ export type Fs = {
 	find: (path: string, follow_symlinks: boolean?) -> FindResult,
 	entries: (path: string) -> { [string]: Entry },
 
-	file: {
+	file: setmetatable<{
 		from: (path: string) -> FileEntry,
 		build: (name: string, content: string) -> FileBuilder,
 		create: (path: string) -> FileEntry,
-	},
+	}, {
+		__call: (self: any, path: string) -> FileEntry?,
+	}>,
 
-	dir: {
+	dir: setmetatable<{
 		from: (path: string) -> DirectoryEntry,
 		build: (name: string, children: DirectoryTree) -> DirectoryBuilder,
 		create: (path: string) -> DirectoryEntry,
-	},
+	}, {
+		__call: (self: any, path: string) -> DirectoryEntry?,
+	}>,
 
 	path: pathlib.PathLib,
 }

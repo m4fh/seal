@@ -1,5 +1,6 @@
 use std::fs;
 use std::io;
+use std::io::ErrorKind;
 use std::path::PathBuf;
 use mlua::prelude::*;
 use crate::{std_time, require::ok_table};
@@ -9,7 +10,10 @@ use copy_dir::copy_dir;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-pub fn get_path_from_entry(entry: LuaValue, function_name: &str) -> LuaResult<String> {
+use super::directory_entry;
+use super::file_entry;
+
+pub fn get_path_from_entry(entry: &LuaValue, function_name: &str) -> LuaResult<String> {
     match entry {
         LuaValue::Table(entry) => {
             match entry.raw_get("path")? {
@@ -50,7 +54,7 @@ pub fn wrap_io_read_errors_empty(err: std::io::Error, function_name: &str, file_
 }
 
 pub fn metadata(luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let entry_path = get_path_from_entry(value, "Entry:metadata()")?;
+    let entry_path = get_path_from_entry(&value, "Entry:metadata()")?;
     let metadata = match fs::metadata(&entry_path) {
         Ok(metadata) => metadata,
         Err(err) => {
@@ -105,7 +109,7 @@ pub fn copy_to(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
             return wrap_err!("Entry:copy_to() expected to be called with self, was incorrectly called with zero arguments");
         }
     };
-    let entry_path = get_path_from_entry(entry, "Entry:copy_to()")?;
+    let entry_path = get_path_from_entry(&entry, "Entry:copy_to()")?;
     let destination_path = match multivalue.pop_front() {
         Some(LuaValue::String(value)) => value.to_string_lossy(),
         Some(other) => {
@@ -126,8 +130,14 @@ pub fn copy_to(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     let entry_to_destination_path = entry_path.clone() + " -> " + &destination_path;
 
     if metadata.is_dir() {
-        match copy_dir(&entry_path, destination_path) {
-            Ok(_unsuccessful) => {
+        match copy_dir(&entry_path, &destination_path) {
+            Ok(unsuccessful) => {
+                if !unsuccessful.is_empty() {
+                    println!("DirectoryEntry:copy_to() didn't fully succeed:");
+                    for err in unsuccessful {
+                        println!("  {}", err);
+                    }
+                }
                 Ok(())
             },
             Err(err) => {
@@ -135,7 +145,7 @@ pub fn copy_to(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
             }
         }
     } else {
-        match fs::copy(&entry_path, destination_path) {
+        match fs::copy(&entry_path, &destination_path) {
             Ok(_) => Ok(()),
             Err(err) => {
                 wrap_io_read_errors_empty(err, "Entry:copy_to()", &entry_path)
@@ -144,14 +154,14 @@ pub fn copy_to(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     }
 }
 
-pub fn move_to(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+pub fn move_to(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     let entry = match multivalue.pop_front() {
         Some(entry) => entry,
         None => {
             return wrap_err!("Entry:move_to() expected to be called with self, got nothing");
         }
     };
-    let entry_path = get_path_from_entry(entry, "Entry:move_to()")?;
+    let entry_path = get_path_from_entry(&entry, "Entry:move_to()")?;
     let destination_path = match multivalue.pop_front() {
         Some(LuaValue::String(destination_path)) => destination_path.to_string_lossy(),
         Some(other) => {
@@ -164,15 +174,22 @@ pub fn move_to(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
 
     let entry_to_destination_path = entry_path.clone() + "->" + &destination_path;
 
-    match fs::rename(entry_path, destination_path) {
-        Ok(_) => Ok(()),
+    match fs::rename(entry_path, &destination_path) {
+        Ok(_) => {
+            let Ok(entry_table) = LuaTable::from_lua(entry, luau) else {
+                return wrap_err!("[Internal error]: Entry:move_to(): self isn't a table? this shouldn't happen");
+            };
+            // dont forget to update entry.path
+            entry_table.raw_set("path", destination_path)?;
+            Ok(())
+        },
         Err(err) => {
             wrap_io_read_errors_empty(err, "Entry:move_to()", &entry_to_destination_path)
         }
     }
 }
 
-pub fn rename(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+pub fn rename(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     let entry = match multivalue.pop_front() {
         Some(entry) => entry,
         None => {
@@ -195,7 +212,7 @@ pub fn rename(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
             return wrap_err!("Entry:rename(): expected a new name, got nothing");
         }
     };
-    let entry_path = get_path_from_entry(entry, "Entry:rename()")?;
+    let entry_path = get_path_from_entry(&entry, "Entry:rename()")?;
     let entry_path = PathBuf::from(entry_path);
     let mut new_path = match entry_path.parent() {
         Some(parent) => parent.to_path_buf(),
@@ -203,13 +220,21 @@ pub fn rename(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
             if cfg!(target_os="windows") {
                 return wrap_err!("Entry:rename(): renaming a top-level Entry is not allowed in Windows");
             } else {
-                PathBuf::from("/")
+                // PathBuf::from("/")
+                return wrap_err!("Entry:rename(): attempt to rename file root \"/\"; this is likely unintentional");
             }
         }
     };
     new_path.push(new_name);
-    match fs::rename(&entry_path, new_path) {
-        Ok(_) => Ok(()),
+    match fs::rename(&entry_path, &new_path) {
+        Ok(_) => {
+            let Ok(entry_table) = LuaTable::from_lua(entry, luau) else {
+                return wrap_err!("[Internal error]: Entry:rename(): self is somehow not a table? this should've already been checked and shouldn't happen")
+            };
+            // update entry.path after renaming entry
+            entry_table.raw_set("path", new_path.to_str())?;
+            Ok(())
+        },
         Err(err) => {
             wrap_err!("Entry:rename(): unable to rename '{}' due to err: {}", entry_path.display(), err)
         }
@@ -223,7 +248,7 @@ pub fn remove(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
             return wrap_err!("Entry:remove(path: string) expected to be called with self");
         }
     };
-    let entry_path = get_path_from_entry(entry, "Entry:remove()")?;
+    let entry_path = get_path_from_entry(&entry, "Entry:remove()")?;
     let entry_path = PathBuf::from(entry_path);
     if !entry_path.exists() {
         wrap_err!("Entry:remove(): attempt to remove nonexistent entry at '{}'; have you already removed it?", entry_path.display())
@@ -243,5 +268,31 @@ pub fn remove(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
         }
     } else {
         wrap_err!("Entry:remove(): attempt to remove an unexpected entry type at '{}'", entry_path.display())
+    }
+}
+
+pub fn create(luau: &Lua, path: &str, function_name: &str) -> LuaValueResult {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            match err.kind() {
+                ErrorKind::NotFound => {
+                    return Ok(LuaNil)
+                },
+                ErrorKind::PermissionDenied => {
+                    return wrap_err!("{}: Permission denied: '{}'", function_name, path);
+                },
+                _ => {
+                    return wrap_err!("{}: Unexpected error when trying to create Entry: {}", function_name, err);
+                }
+            }
+        }
+    };
+    if metadata.is_dir() {
+       ok_table(directory_entry::create(luau, path))
+    } else if metadata.is_file() {
+        ok_table(file_entry::create(luau, path))
+    } else {
+        wrap_err!("{}: expected path to be of a File or Directory, got: {:#?}", function_name, metadata)
     }
 }
