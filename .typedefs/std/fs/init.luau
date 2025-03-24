@@ -89,12 +89,15 @@ export type FsMetadata = {
 
 export type FindResult = { -- can't make this type more accurate w/ unions bc it breaks (new) typesolver
 	ok: boolean,
+	path: string,
 	exists: (self: FindResult) -> boolean,
 	file: FileEntry?,
 	dir: DirectoryEntry?,
+	retry_file: (self: FindResult) -> FileEntry?,
+	retry_dir: (self: FindResult) -> DirectoryEntry?,
 	unwrap_file: (self: FindResult) -> FileEntry,
 	unwrap_dir: (self: FindResult) -> DirectoryEntry,
-	err: ("NotFound" | "PermissionDenied")?
+	err: "PermissionDenied"?,
 }
 
 type FileBuilder = {
