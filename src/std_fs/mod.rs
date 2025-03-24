@@ -25,58 +25,6 @@ pub fn validate_path(path: &LuaString, function_name: &str) -> LuaResult<String>
     Ok(path)
 }
 
-/// fs.listdir(path: string, recursive: boolean?): { string }
-fn fs_listdir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
-    let dir_path = match multivalue.pop_front() {
-        Some(LuaValue::String(path)) => {
-            validate_path(&path, "fs.listdir(path: string, recursive: boolean?)")?
-        },
-        Some(other) => {
-            return wrap_err!("fs.listdir(path: string, recursive: boolean?) expected path to be a string, got: {:#?}", other);
-        },
-        None => {
-            return wrap_err!("fs.listdir(path: string, recursive: boolean?) called without any arguments");
-        }
-    };
-    directory_entry::listdir(luau, dir_path, multivalue, "fs.listdir(path: string, recursive: boolean?)")
-}
-
-fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let function_name = "fs.entries(directory: string)";
-    let directory_path = match value {
-        LuaValue::String(path) => {
-            validate_path(&path, function_name)?
-        },
-        other => {
-            return wrap_err!("{} expected directory to be a string, got: {:?}", function_name, other);
-        }
-    };
-    let metadata = match fs::metadata(&directory_path) {
-        Ok(metadata) => metadata,
-        Err(err) => {
-            return wrap_io_read_errors(err, function_name, &directory_path);
-        }
-    };
-    if !metadata.is_dir() {
-        return wrap_err!("{} expected '{}' to be a directory, got file instead", function_name, directory_path);
-    }
-
-    let mut entry_vec: Vec<(String, LuaValue)> = Vec::new();
-
-    for current_entry in fs::read_dir(&directory_path)? {
-        let current_entry = current_entry?;
-        let entry_path = current_entry.path().to_string_lossy().to_string();
-        // entry::create creates either a FileEntry or DirectoryEntry as needed
-        let entry_table = entry::create(luau, &entry_path, function_name)?;
-        entry_vec.push((entry_path, entry_table));
-    }
-
-    ok_table(TableBuilder::create(luau)?
-        .with_values(entry_vec)?
-        .build_readonly()
-    )
-}
-
 /// `fs.readfile(path: string): string`
 /// 
 /// note that we allow reading invalid utf8 files instead of failing (requiring fs.readbytes) 
@@ -279,6 +227,106 @@ pub fn fs_removetree(_luau: &Lua, value: LuaValue) -> LuaEmptyResult {
     } else {
         wrap_err!("fs.removetree(path: string) expected to find a directory at path '{}' but instead found a file", victim_path)
     }
+}
+
+/// fs.listdir(path: string, recursive: boolean?): { string }
+fn fs_listdir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let dir_path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path(&path, "fs.listdir(path: string, recursive: boolean?)")?
+        },
+        Some(other) => {
+            return wrap_err!("fs.listdir(path: string, recursive: boolean?) expected path to be a string, got: {:#?}", other);
+        },
+        None => {
+            return wrap_err!("fs.listdir(path: string, recursive: boolean?) called without any arguments");
+        }
+    };
+    directory_entry::listdir(luau, dir_path, multivalue, "fs.listdir(path: string, recursive: boolean?)")
+}
+
+fn fs_makedir(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+    let function_name = "fs.makedir(path: string, create_missing: boolean?)";
+    let new_path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path(&path, function_name)?
+        },
+        Some(other) => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected path to be a string, got nothing", function_name);
+        }
+    };
+    let create_missing_dirs = match multivalue.pop_front() {
+        Some(LuaValue::Boolean(b)) => b,
+        Some(LuaNil) => false,
+        Some(other) => {
+            return wrap_err!("{}: expected create_missing to be a boolean, nil, or unspecified, got: {:?}", function_name, other);
+        },
+        None => false,
+    };
+
+    match if create_missing_dirs {
+        fs::create_dir_all(&new_path)
+    } else {
+        fs::create_dir(&new_path)
+    } {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::AlreadyExists => {
+                    wrap_err!("{}: directory '{}' already exists", function_name, &new_path)
+                },
+                io::ErrorKind::NotFound => {
+                    wrap_err!(
+                        "{}: path to '{}' not found; pass 'true' as fs.makedir's second argument to create the missing directories,\n\
+                        and/or make sure the passed path starts in '/', './', or '../'",
+                        function_name, &new_path
+                    )
+                },
+                _ => {
+                    wrap_err!("{} unable to create directory/directories due to err: {}", function_name, err)
+                }
+            }
+        }
+    }
+}
+
+fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let function_name = "fs.entries(directory: string)";
+    let directory_path = match value {
+        LuaValue::String(path) => {
+            validate_path(&path, function_name)?
+        },
+        other => {
+            return wrap_err!("{} expected directory to be a string, got: {:?}", function_name, other);
+        }
+    };
+    let metadata = match fs::metadata(&directory_path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            return wrap_io_read_errors(err, function_name, &directory_path);
+        }
+    };
+    if !metadata.is_dir() {
+        return wrap_err!("{} expected '{}' to be a directory, got file instead", function_name, directory_path);
+    }
+
+    let mut entry_vec: Vec<(String, LuaValue)> = Vec::new();
+
+    for current_entry in fs::read_dir(&directory_path)? {
+        let current_entry = current_entry?;
+        let entry_path = current_entry.path().to_string_lossy().to_string();
+        // entry::create creates either a FileEntry or DirectoryEntry as needed
+        let entry_table = entry::create(luau, &entry_path, function_name)?;
+        entry_vec.push((entry_path, entry_table));
+    }
+
+    ok_table(TableBuilder::create(luau)?
+        .with_values(entry_vec)?
+        .build_readonly()
+    )
 }
 
 /// helper function for fs_find
@@ -551,57 +599,6 @@ pub fn fs_exists(_luau: &Lua, path: LuaValue) -> LuaValueResult {
     }
 }
 
-// fn fs_create(luau: &Lua, new_options: LuaValue) -> LuaValueResult {
-//     match new_options {
-//         LuaValue::Table(options) => {
-//             let entry_path = {
-//                 if let LuaValue::String(file_path) = options.get("file")? {
-//                     let writefile_options = TableBuilder::create(luau)?
-//                         .with_value("path", file_path.to_owned())?
-//                         .with_value("content", "")?
-//                         .build_readonly()?;
-//                     fs_writefile(luau, LuaValue::Table(writefile_options))?;
-//                     file_path.to_str()?.to_string()
-//                     // Ok(LuaNil)
-//                 } else if let LuaValue::Table(file_options) = options.get("file")? {
-//                    let file_name: LuaString = file_options.get("name")?;
-//                    let file_content: LuaString = file_options.get("content")?;
-//                    let writefile_options = TableBuilder::create(luau)?
-//                         .with_value("path", file_name.to_owned())?
-//                         .with_value("content", file_content)?
-//                         .build_readonly()?;
-//                     fs_writefile(luau, LuaValue::Table(writefile_options))?;
-//                     file_name.to_str()?.to_string()
-//                     // Ok(LuaNil)
-//                 } else if let LuaValue::String(directory_path) = options.get("directory")? {
-//                     let dir_path = directory_path.to_string_lossy().to_string();
-//                     match fs::create_dir(&dir_path) {
-//                         Ok(_) => dir_path,
-//                         Err(err) => {
-//                             match err.kind() {
-//                                 io::ErrorKind::AlreadyExists => {
-//                                     return wrap_err!("fs.create: error creating directory: directory '{}' already exists", dir_path);
-//                                 },
-//                                 _other => {
-//                                     return wrap_err!("fs.create: error creating directory: {}", err);
-//                                 }
-//                             }
-//                         }
-//                     }
-//                 } else if let LuaValue::Table(_tree) = options.get("directory")? {
-//                     todo!()
-//                 } else {
-//                     return wrap_err!("fs.create expected {{file: string}} or {{file: {{name: string, content: string}}}}, but got something else");
-//                 }
-//             };
-//             Ok(LuaValue::Table(create_entry_table(luau, &entry_path)?))
-//         },
-//         other => {
-//             wrap_err!("fs.create expected to be called with table of type {{ file: string }} or {{ directory: string }}, got {:?}", other)
-//         }
-//     }
-// }
-
 fn fs_file_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let path = match value {
         LuaValue::String(path) => path.to_string_lossy(),
@@ -643,6 +640,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("move", fs_move)?
         .with_function("removefile", fs_removefile) ?
         .with_function("listdir", fs_listdir)?
+        .with_function("makedir", fs_makedir)?
         .with_function("removetree", fs_removetree)?
         .with_function("entries", fs_entries)?
         .with_function("find", fs_find)?

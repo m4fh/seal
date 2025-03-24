@@ -13,7 +13,7 @@ export type Fs = {
 	writetree: (path: string, children: DirectoryTree) -> (),
 	removetree: (path: string) -> (),
 
-	makedir: (path: string) -> (),
+	makedir: (path: string, create_missing: boolean?) -> (),
 	listdir: (path: string, recursive: boolean?) -> { string },
 
 	move: (from: string, to: string) -> (),
