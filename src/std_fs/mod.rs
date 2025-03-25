@@ -9,6 +9,7 @@ pub mod entry;
 pub mod pathlib;
 pub mod file_entry;
 pub mod directory_entry;
+pub mod watch;
 
 pub fn validate_path(path: &LuaString, function_name: &str) -> LuaResult<String> {
     let Ok(path) = path.to_str() else {
