@@ -21,6 +21,7 @@ rsa = "0.9.7"
 rand = "0.8.5"
 simple_crypt = "0.2.3"
 hex = "0.4.3"
+notify = { version = "8.0.0", features = ["crossbeam-channel"] }
 
 [profile.dev.package.num-bigint-dig]
 opt-level = 3 # otherwise rsa keygen takes forever
